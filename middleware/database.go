@@ -40,7 +40,8 @@ func ConnectDB() bool {
 
 	if err := DBConn.AutoMigrate(
 		&models.AdminAccount{},
-		&models.UserAccount{}); 
+		&models.UserAccount{},
+		&models.CreateTicket{});
 		err != nil {
 		log.Println("❌ Auto-migration failed:", err)
 		return true

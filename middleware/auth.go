@@ -82,27 +82,25 @@ func JWTMiddleware() fiber.Handler {
 			})
 		}
 
-		adopterID, ok := claims["id"].(float64)
+		UserID, ok := claims["id"].(float64)
 		if !ok {
 			return c.JSON(response.ResponseModel{
 				RetCode: "401",
-				Message: "Unauthorized: Missing adopter ID in token",
+				Message: "Unauthorized: Missing User ID in token",
 				Data:    nil,
 			})
 		}
 
-		// Store adopter ID in context
-		c.Locals("adopter_id", uint(adopterID))
+		c.Locals("user_id", uint(UserID))
 		return c.Next()
 
 	}
 }
 
-// GetAdopterIDFromJWT retrieves the adopter ID from the JWT token stored in the Fiber context
-func GetAdopterIDFromJWT(c *fiber.Ctx) (uint, error) {
-	adopterID, ok := c.Locals("adopter_id").(uint) // JWT claims are stored as float64 in Go
+func GetUserIDFromJWT(c *fiber.Ctx) (uint, error) {
+	UserID, ok := c.Locals("user_id").(uint) // JWT claims are stored as float64 in Go
 	if !ok {
-		return 0, fmt.Errorf("adopter ID not found in context")
+		return 0, fmt.Errorf("user ID not found in context")
 	}
-	return uint(adopterID), nil
+	return uint(UserID), nil
 }

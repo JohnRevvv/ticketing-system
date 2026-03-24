@@ -12,8 +12,8 @@ type UserAccount struct {
 	LastName  string `json:"last_name"`
 	Email     string `gorm:"unique" json:"email"`
 	Position  string `json:"position"`
-	Role      string `json:"role"`
-	Status    string `gorm:"default:'active'" json:"status"`
+	Role      string `gorm:"default:'enduser'" json:"role"`
+	Status    string `gorm:"default:'pending'" json:"status"`
 	CreatedAt time.Time
 }
 
