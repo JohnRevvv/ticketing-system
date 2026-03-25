@@ -24,3 +24,15 @@ type CreateTicket struct {
 func (CreateTicket) TableName() string {
 	return "tickets"
 }
+
+type TicketAttachment struct {
+    ID         uint      `gorm:"primaryKey" json:"id"`
+    TicketID   string    `json:"ticket_id"`   // same ticket ID as CreateTicket
+    FileName   string    `json:"file_name"`
+    FilePath   string    `json:"file_path"`   // saved in backend folder
+    UploadedBy string    `json:"uploaded_by"` // username or userID
+}
+
+func (TicketAttachment) TableName() string {
+    return "ticket_attachments"
+}

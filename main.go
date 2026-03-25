@@ -8,6 +8,7 @@ import (
 	"ticketing-be-dev/routes"
 
 	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v2/middleware/cors"
 	"github.com/gofiber/fiber/v2/middleware/logger"
 	"github.com/joho/godotenv"
 )
@@ -31,7 +32,15 @@ func main() {
 
 	// Fiber app
 	app := fiber.New()
+
 	app.Use(logger.New())
+
+	// ✅ ADD THIS
+	app.Use(cors.New(cors.Config{
+		AllowOrigins: "*",
+		AllowMethods: "GET,POST,PUT,DELETE,OPTIONS",
+		AllowHeaders: "Origin, Content-Type, Accept, Authorization",
+	}))
 
 	// Health check
 	app.Get("/", func(c *fiber.Ctx) error {
