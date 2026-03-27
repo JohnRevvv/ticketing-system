@@ -26,6 +26,7 @@ func AppRoutes(app *fiber.App) {
 	adminRoutes.Get("/list/all/users", controllers.GetAllUsers)
 	adminRoutes.Put("/update/user/:id", controllers.UpdateUserRoleStatus)
 	adminRoutes.Get("/list/all/tickets", controllers.GetAllTickets)
+	adminRoutes.Get("/tickets/:id", controllers.GetTicketByID)
 
 	// ==============================
 	// User routes (JWT required)
@@ -38,4 +39,5 @@ func AppRoutes(app *fiber.App) {
 	userRoutes.Put("/ticket/grab/:id", controllers.GrabTicket)
 	userRoutes.Put("/ticket/resolve/:id", controllers.ResolveTicket)
     userRoutes.Put("/ticket/cancel/:id", controllers.CancelTicket)
+	userRoutes.Get("/tickets/:id", controllers.GetTicketByID)
 }
