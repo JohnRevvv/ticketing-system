@@ -11,7 +11,7 @@ import (
 )
 
 // RegisterUser registers a new user with default status "active"
-func RegisterUser(c *fiber.Ctx) error {
+func Register(c *fiber.Ctx) error {
 	var body struct {
 		Username string `json:"username"`
 		Password string `json:"password"`
@@ -62,7 +62,7 @@ func RegisterUser(c *fiber.Ctx) error {
 }
 
 // LoginUser logs in only if status is active
-func LoginUser(c *fiber.Ctx) error {
+func Login(c *fiber.Ctx) error {
 	var body struct {
 		Username string `json:"username"` // can be username OR email
 		Password string `json:"password"`

@@ -39,7 +39,6 @@ func ConnectDB() bool {
 	DBConn = db
 
 	if err := DBConn.AutoMigrate(
-		&models.AdminAccount{},
 		&models.UserAccount{},
 		&models.CreateTicket{},
 		&models.PasswordResetToken{});

@@ -13,11 +13,8 @@ func AppRoutes(app *fiber.App) {
 	// ==============================
 	// Public routes (no token needed)
 	// ==============================
-	api.Post("/admin/register", controllers.RegisterAdmin)
-	api.Post("/admin/login", controllers.LoginAdmin)
-
-	api.Post("/user/register", controllers.RegisterUser)
-	api.Post("/user/login", controllers.LoginUser)
+	api.Post("/user/register", controllers.Register)
+	api.Post("/user/login", controllers.Login)
 
 	api.Post("/forgot-password", controllers.ForgotPassword)
 	api.Post("/reset-password", controllers.ResetPassword)
