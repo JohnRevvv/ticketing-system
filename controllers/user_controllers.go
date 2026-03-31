@@ -5,7 +5,7 @@ import (
 	"ticketing-be-dev/models"
 	"ticketing-be-dev/models/response"
 	"time"
-	
+
 	"github.com/gofiber/fiber/v2"
 	"golang.org/x/crypto/bcrypt"
 )
@@ -13,12 +13,12 @@ import (
 // RegisterUser registers a new user with default status "active"
 func RegisterUser(c *fiber.Ctx) error {
 	var body struct {
-		Username  string `json:"username"`
-		Password  string `json:"password"`
-		FirstName string `json:"first_name"`
-		LastName  string `json:"last_name"`
-		Position  string `json:"position"`
-		Email     string `json:"email"`
+		Username string `json:"username"`
+		Password string `json:"password"`
+		FullName string `json:"full_name"`
+		Position string `json:"position"`
+		Role     string `json:"role"`
+		Email    string `json:"email"`
 	}
 
 	if err := c.BodyParser(&body); err != nil {
@@ -38,14 +38,13 @@ func RegisterUser(c *fiber.Ctx) error {
 	}
 
 	user := models.UserAccount{
-		Username:  body.Username,
-		Password:  string(hashedPassword),
-		FirstName: body.FirstName,
-		LastName:  body.LastName,
-		Email:     body.Email,
-		Position:  body.Position,
-		Role:      "enduser",
-		Status:    "pending", // default status
+		Username: body.Username,
+		Password: string(hashedPassword),
+		FullName: body.FullName,
+		Email:    body.Email,
+		Position: body.Position,
+		Role:     body.Role,
+		Status:   "active", // default status
 	}
 
 	if err := middleware.DBConn.Create(&user).Error; err != nil {
