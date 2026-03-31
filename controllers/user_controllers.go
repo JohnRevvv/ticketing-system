@@ -21,11 +21,27 @@ func Register(c *fiber.Ctx) error {
 		Email    string `json:"email"`
 	}
 
-
 	if err := c.BodyParser(&body); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(response.ResponseModel{
 			RetCode: "400",
 			Message: "Invalid request body",
+		})
+	}
+
+	// Check if username already exists
+	var existingUser models.UserAccount
+	if err := middleware.DBConn.Where("username = ?", body.Username).First(&existingUser).Error; err == nil {
+		return c.Status(fiber.StatusConflict).JSON(response.ResponseModel{
+			RetCode: "409",
+			Message: "Username already exists",
+		})
+	}
+
+	// Check if email already exists
+	if err := middleware.DBConn.Where("email = ?", body.Email).First(&existingUser).Error; err == nil {
+		return c.Status(fiber.StatusConflict).JSON(response.ResponseModel{
+			RetCode: "409",
+			Message: "Email already exists",
 		})
 	}
 
@@ -45,7 +61,7 @@ func Register(c *fiber.Ctx) error {
 		Email:    body.Email,
 		Position: body.Position,
 		Role:     body.Role,
-		Status:   "active", // default status
+		Status:   "active",
 	}
 
 	if err := middleware.DBConn.Create(&user).Error; err != nil {

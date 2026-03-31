@@ -20,15 +20,6 @@ func AppRoutes(app *fiber.App) {
 	api.Post("/reset-password", controllers.ResetPassword)
 
 	// ==============================
-	// Admin routes (JWT required)
-	// ==============================
-	adminRoutes := api.Group("/admin", middleware.JWTMiddleware())
-	adminRoutes.Get("/list/all/users", controllers.GetAllUsers)
-	adminRoutes.Put("/update/user/:id", controllers.UpdateUserRoleStatus)
-	adminRoutes.Get("/list/all/tickets", controllers.GetAllTickets)
-	adminRoutes.Get("/tickets/:id", controllers.GetTicketByID)
-
-	// ==============================
 	// User routes (JWT required)
 	// ==============================
 	userRoutes := api.Group("/user", middleware.JWTMiddleware())
@@ -39,5 +30,9 @@ func AppRoutes(app *fiber.App) {
 	userRoutes.Put("/ticket/grab/:id", controllers.GrabTicket)
 	userRoutes.Put("/ticket/resolve/:id", controllers.ResolveTicket)
 	userRoutes.Put("/ticket/cancel/:id", controllers.CancelTicket)
+	userRoutes.Get("/tickets/:id", controllers.GetTicketByID)
+	userRoutes.Get("/list/all/users", controllers.GetAllUsers)
+	userRoutes.Put("/update/user/:id", controllers.UpdateUserRoleStatus)
+	userRoutes.Get("/list/all/tickets", controllers.GetAllTickets)
 	userRoutes.Get("/tickets/:id", controllers.GetTicketByID)
 }

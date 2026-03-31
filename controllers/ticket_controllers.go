@@ -18,7 +18,7 @@ func generateTicketID() string {
 	var lastTicket models.CreateTicket
 	if err := middleware.DBConn.Order("ticket_id desc").First(&lastTicket).Error; err != nil {
 		// No tickets yet
-		return "SR0000001"
+		return "SR000001"
 	}
 
 	// Extract numeric part
