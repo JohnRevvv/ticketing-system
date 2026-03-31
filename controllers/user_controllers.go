@@ -21,6 +21,7 @@ func Register(c *fiber.Ctx) error {
 		Email    string `json:"email"`
 	}
 
+
 	if err := c.BodyParser(&body); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(response.ResponseModel{
 			RetCode: "400",
