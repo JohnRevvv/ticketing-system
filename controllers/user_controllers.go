@@ -65,7 +65,7 @@ func RegisterUser(c *fiber.Ctx) error {
 // LoginUser logs in only if status is active
 func LoginUser(c *fiber.Ctx) error {
 	var body struct {
-		Username string `json:"username"`
+		Username string `json:"username"` // can be username OR email
 		Password string `json:"password"`
 	}
 
@@ -77,14 +77,19 @@ func LoginUser(c *fiber.Ctx) error {
 	}
 
 	var user models.UserAccount
-	if err := middleware.DBConn.Where("username = ?", body.Username).First(&user).Error; err != nil {
+
+	// 🔥 Allow login via username OR email
+	if err := middleware.DBConn.
+		Where("username = ? OR email = ?", body.Username, body.Username).
+		First(&user).Error; err != nil {
+
 		return c.Status(fiber.StatusUnauthorized).JSON(response.ResponseModel{
 			RetCode: "401",
-			Message: "Invalid username or password",
+			Message: "Invalid username/email or password",
 		})
 	}
 
-	// Check if user is active
+	// ✅ Check if user is active
 	if user.Status != "active" {
 		return c.Status(fiber.StatusForbidden).JSON(response.ResponseModel{
 			RetCode: "403",
@@ -92,15 +97,15 @@ func LoginUser(c *fiber.Ctx) error {
 		})
 	}
 
-	// Compare password
+	// 🔐 Compare password
 	if err := bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(body.Password)); err != nil {
 		return c.Status(fiber.StatusUnauthorized).JSON(response.ResponseModel{
 			RetCode: "401",
-			Message: "Invalid username or password",
+			Message: "Invalid username/email or password",
 		})
 	}
 
-	// Generate JWT
+	// 🔑 Generate JWT
 	token, err := middleware.GenerateJWT(user.UserID)
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(response.ResponseModel{
@@ -115,6 +120,7 @@ func LoginUser(c *fiber.Ctx) error {
 		Data: fiber.Map{
 			"user_id":  user.UserID,
 			"username": user.Username,
+			"email":    user.Email, // optional but useful
 			"token":    token,
 		},
 	})

@@ -19,6 +19,9 @@ func AppRoutes(app *fiber.App) {
 	api.Post("/user/register", controllers.RegisterUser)
 	api.Post("/user/login", controllers.LoginUser)
 
+	api.Post("/forgot-password", controllers.ForgotPassword)
+	api.Post("/reset-password", controllers.ResetPassword)
+
 	// ==============================
 	// Admin routes (JWT required)
 	// ==============================
@@ -38,6 +41,6 @@ func AppRoutes(app *fiber.App) {
 	userRoutes.Put("/ticket/approve/:id", controllers.ApproveTicket)
 	userRoutes.Put("/ticket/grab/:id", controllers.GrabTicket)
 	userRoutes.Put("/ticket/resolve/:id", controllers.ResolveTicket)
-    userRoutes.Put("/ticket/cancel/:id", controllers.CancelTicket)
+	userRoutes.Put("/ticket/cancel/:id", controllers.CancelTicket)
 	userRoutes.Get("/tickets/:id", controllers.GetTicketByID)
 }
