@@ -142,6 +142,25 @@ func Login(c *fiber.Ctx) error {
 	})
 }
 
+func GetCurrentUser(c *fiber.Ctx) error {
+    // Assume token is passed in Authorization header: "Bearer <token>"
+    userID := c.Locals("userID") // This should be set by your JWT middleware
+
+    var user models.UserAccount
+    if err := middleware.DBConn.First(&user, "user_id = ?", userID).Error; err != nil {
+        return c.Status(fiber.StatusNotFound).JSON(response.ResponseModel{
+            RetCode: "404",
+            Message: "User not found",
+        })
+    }
+
+    return c.Status(fiber.StatusOK).JSON(response.ResponseModel{
+        RetCode: "200",
+        Message: "User fetched successfully",
+        Data:    user,
+    })
+}
+
 func GetAllUsers(c *fiber.Ctx) error {
 	var users []models.UserAccount
 
