@@ -38,7 +38,7 @@ func CreateTicket(c *fiber.Ctx) error {
 		Subject:     c.FormValue("subject"),
 		Category:    c.FormValue("category"),
 		Institution: c.FormValue("institution"),
-		Tickettype:  c.FormValue("tikcettype"),
+		Tickettype:  c.FormValue("tickettype"),
 		Description: c.FormValue("description"),
 		Purpose:     c.FormValue("purpose"),
 		Assignee:    c.FormValue("assignee"),
