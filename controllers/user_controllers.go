@@ -1,9 +1,11 @@
 package controllers
 
 import (
+	"log"
 	"ticketing-be-dev/middleware"
 	"ticketing-be-dev/models"
 	"ticketing-be-dev/models/response"
+	"ticketing-be-dev/services"
 	"time"
 
 	"github.com/gofiber/fiber/v2"
@@ -143,22 +145,22 @@ func Login(c *fiber.Ctx) error {
 }
 
 func GetCurrentUser(c *fiber.Ctx) error {
-    // Assume token is passed in Authorization header: "Bearer <token>"
-    userID := c.Locals("userID") // This should be set by your JWT middleware
+	// Assume token is passed in Authorization header: "Bearer <token>"
+	userID := c.Locals("userID") // This should be set by your JWT middleware
 
-    var user models.UserAccount
-    if err := middleware.DBConn.First(&user, "user_id = ?", userID).Error; err != nil {
-        return c.Status(fiber.StatusNotFound).JSON(response.ResponseModel{
-            RetCode: "404",
-            Message: "User not found",
-        })
-    }
+	var user models.UserAccount
+	if err := middleware.DBConn.First(&user, "user_id = ?", userID).Error; err != nil {
+		return c.Status(fiber.StatusNotFound).JSON(response.ResponseModel{
+			RetCode: "404",
+			Message: "User not found",
+		})
+	}
 
-    return c.Status(fiber.StatusOK).JSON(response.ResponseModel{
-        RetCode: "200",
-        Message: "User fetched successfully",
-        Data:    user,
-    })
+	return c.Status(fiber.StatusOK).JSON(response.ResponseModel{
+		RetCode: "200",
+		Message: "User fetched successfully",
+		Data:    user,
+	})
 }
 
 func GetAllUsers(c *fiber.Ctx) error {
@@ -225,13 +227,28 @@ func EndorseTicket(c *fiber.Ctx) error {
 	}
 
 	// ✅ Update status
+	// ✅ Update status
 	ticket.Status = "for approval"
-
 	if err := middleware.DBConn.Save(&ticket).Error; err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(response.ResponseModel{
 			RetCode: "500",
 			Message: "Failed to update ticket",
 		})
+	}
+
+	// Get approver email
+	var approver models.UserAccount
+	if err := middleware.DBConn.
+		Where("username = ?", ticket.Approver).
+		First(&approver).Error; err != nil {
+
+		log.Println("Approver not found:", err)
+		// You can choose to continue without failing the request
+	}
+
+	// Send email asynchronously
+	if approver.Email != "" {
+		go services.SendApproverNotification(ticket, approver.Email)
 	}
 
 	return c.Status(fiber.StatusOK).JSON(response.ResponseModel{
@@ -262,7 +279,7 @@ func ApproveTicket(c *fiber.Ctx) error {
 		})
 	}
 
-	// ✅ Check role
+	// Check role
 	if user.Role != "approver" {
 		return c.Status(fiber.StatusForbidden).JSON(response.ResponseModel{
 			RetCode: "403",
@@ -279,7 +296,7 @@ func ApproveTicket(c *fiber.Ctx) error {
 		})
 	}
 
-	// ❌ BLOCK: cannot approve if still for endorsement
+	// Cannot approve if still for endorsement
 	if ticket.Status == "for endorsement" {
 		return c.Status(fiber.StatusBadRequest).JSON(response.ResponseModel{
 			RetCode: "400",
@@ -287,7 +304,7 @@ func ApproveTicket(c *fiber.Ctx) error {
 		})
 	}
 
-	// ❌ Optional: prevent re-approval
+	// Prevent re-approval
 	if ticket.Status != "for approval" {
 		return c.Status(fiber.StatusBadRequest).JSON(response.ResponseModel{
 			RetCode: "400",
@@ -295,9 +312,8 @@ func ApproveTicket(c *fiber.Ctx) error {
 		})
 	}
 
-	// ✅ Approve ticket
+	// Approve ticket
 	ticket.Status = "for assignment"
-
 	if err := middleware.DBConn.Save(&ticket).Error; err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(response.ResponseModel{
 			RetCode: "500",
@@ -305,9 +321,21 @@ func ApproveTicket(c *fiber.Ctx) error {
 		})
 	}
 
+	// Send email to all resolvers
+	var resolvers []models.UserAccount
+	if err := middleware.DBConn.Where("role = ?", "resolver").Find(&resolvers).Error; err != nil {
+		log.Println("Failed to fetch resolvers:", err)
+	}
+
+	for _, r := range resolvers {
+		if r.Email != "" {
+			go services.SendResolverNotification(ticket, r.Email)
+		}
+	}
+
 	return c.Status(fiber.StatusOK).JSON(response.ResponseModel{
 		RetCode: "200",
-		Message: "Ticket approved successfully",
+		Message: "Ticket approved successfully and resolvers notified",
 		Data:    ticket,
 	})
 }

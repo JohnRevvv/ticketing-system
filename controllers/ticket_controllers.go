@@ -2,6 +2,7 @@ package controllers
 
 import (
 	"fmt"
+	"log"
 	"os"
 	"path/filepath"
 	"strings"
@@ -9,6 +10,7 @@ import (
 	"ticketing-be-dev/middleware"
 	"ticketing-be-dev/models"
 	"ticketing-be-dev/models/response"
+	"ticketing-be-dev/services"
 	"time"
 
 	"github.com/gofiber/fiber/v2"
@@ -24,7 +26,7 @@ func generateTicketID() string {
 	var lastTicket models.CreateTicket
 	if err := middleware.DBConn.Order("created_at desc").First(&lastTicket).Error; err != nil {
 		// No tickets yet
-		return "SR0000001"
+		return "SR000001"
 	}
 
 	// Extract numeric part
@@ -89,16 +91,12 @@ func CreateTicket(c *fiber.Ctx) error {
 	if err == nil && form.File != nil {
 		files := form.File["attachments"]
 
-		// Get upload base path (fallback if not set)
 		baseUploadPath := os.Getenv("UPLOAD_PATH")
 		if baseUploadPath == "" {
 			baseUploadPath = "upload/attachments"
 		}
 
-		uploadDir := baseUploadPath
-
-		// Create base directory if not exists
-		if err := os.MkdirAll(uploadDir, os.ModePerm); err != nil {
+		if err := os.MkdirAll(baseUploadPath, os.ModePerm); err != nil {
 			tx.Rollback()
 			return c.Status(fiber.StatusInternalServerError).JSON(response.ResponseModel{
 				RetCode: "500",
@@ -107,7 +105,6 @@ func CreateTicket(c *fiber.Ctx) error {
 		}
 
 		for _, file := range files {
-			// ✅ File size validation (max 5MB)
 			if file.Size > 5*1024*1024 {
 				tx.Rollback()
 				return c.Status(fiber.StatusBadRequest).JSON(response.ResponseModel{
@@ -116,19 +113,10 @@ func CreateTicket(c *fiber.Ctx) error {
 				})
 			}
 
-			// ✅ Sanitize filename
 			cleanFileName := filepath.Base(file.Filename)
+			savedFileName := fmt.Sprintf("%s_%d_%s", ticket.TicketID, time.Now().UnixNano(), cleanFileName)
+			filePath := fmt.Sprintf("%s/%s", baseUploadPath, savedFileName)
 
-			// Unique filename
-			savedFileName := fmt.Sprintf("%s_%d_%s",
-				ticket.TicketID,
-				time.Now().UnixNano(),
-				cleanFileName,
-			)
-
-			filePath := fmt.Sprintf("%s/%s", uploadDir, savedFileName)
-
-			// Save file
 			if err := c.SaveFile(file, filePath); err != nil {
 				tx.Rollback()
 				return c.Status(fiber.StatusInternalServerError).JSON(response.ResponseModel{
@@ -137,7 +125,6 @@ func CreateTicket(c *fiber.Ctx) error {
 				})
 			}
 
-			// Save metadata
 			attachment := models.TicketAttachment{
 				TicketID:   ticket.TicketID,
 				FileName:   cleanFileName,
@@ -155,13 +142,34 @@ func CreateTicket(c *fiber.Ctx) error {
 		}
 	}
 
+	// Get endorser email
+	var endorser models.UserAccount
+	if err := middleware.DBConn.
+		Where("username = ?", ticket.Endorser).
+		First(&endorser).Error; err != nil {
+
+		tx.Rollback()
+		return c.Status(fiber.StatusInternalServerError).JSON(response.ResponseModel{
+			RetCode: "500",
+			Message: "Endorser not found",
+		})
+	}
+
 	// Commit transaction
 	if err := tx.Commit().Error; err != nil {
+		tx.Rollback()
 		return c.Status(fiber.StatusInternalServerError).JSON(response.ResponseModel{
 			RetCode: "500",
 			Message: "Failed to finalize transaction",
 		})
 	}
+
+	// Send email asynchronously
+	go func() {
+		if err := services.SendEndorserNotification(ticket, endorser.Email); err != nil {
+			log.Println("Error sending endorser email:", err)
+		}
+	}()
 
 	return c.Status(fiber.StatusCreated).JSON(response.ResponseModel{
 		RetCode: "201",
