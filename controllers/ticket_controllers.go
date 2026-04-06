@@ -5,6 +5,7 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"sync"
 	"ticketing-be-dev/middleware"
@@ -332,5 +333,67 @@ func GetTicketByID(c *fiber.Ctx) error {
 			"ticket":      ticket,
 			"attachments": attachments,
 		},
+	})
+}
+
+func GetTicketsReport(c *fiber.Ctx) error {
+	var tickets []models.CreateTicket
+
+	// Optional query params
+	month := c.Query("month")   // "4"
+	year := c.Query("year")     // "2026"
+
+	db := middleware.DBConn
+
+	// Filter by month/year if provided
+	if month != "" && year != "" {
+		m, err1 := strconv.Atoi(month)
+		y, err2 := strconv.Atoi(year)
+		if err1 == nil && err2 == nil {
+			start := time.Date(y, time.Month(m), 1, 0, 0, 0, 0, time.Local)
+			end := start.AddDate(0, 1, 0).Add(-time.Nanosecond)
+			db = db.Where("created_at BETWEEN ? AND ?", start, end)
+		}
+	}
+
+	if err := db.Order("created_at desc").Find(&tickets).Error; err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(response.ResponseModel{
+			RetCode: "500",
+			Message: "Failed to fetch tickets",
+		})
+	}
+
+	// Build table report (same as previous example)
+	report := make([]map[string]interface{}, len(tickets))
+	for i, t := range tickets {
+		report[i] = map[string]interface{}{
+			"Ticket ID":    t.TicketID,
+			"Username":     t.Username,
+			"Category":     t.Category,
+			"Subject":      t.Subject,
+			"Institution":  t.Institution,
+			"Type":         t.Tickettype,
+			"Description":  t.Description,
+			"Purpose":      t.Purpose,
+			"Priority":     t.Priority,
+			"Assignee":     t.Assignee,
+			"Endorser":     t.Endorser,
+			"Approver":     t.Approver,
+			"Remarks":      t.Remarks,
+			"Status":       t.Status,
+			"Created At":   t.CreatedAt.Format("2006-01-02 15:04:05"),
+			"Updated At":   t.UpdatedAt.Format("2006-01-02 15:04:05"),
+			"Cancelled By": t.CancelledBy,
+			"Cancelled At": "",
+		}
+		if t.CancelledAt != nil {
+			report[i]["Cancelled At"] = t.CancelledAt.Format("2006-01-02 15:04:05")
+		}
+	}
+
+	return c.Status(fiber.StatusOK).JSON(response.ResponseModel{
+		RetCode: "200",
+		Message: "Ticket report generated successfully",
+		Data:    report,
 	})
 }
