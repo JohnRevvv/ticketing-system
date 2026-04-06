@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"ticketing-be-dev/middleware"
 	"ticketing-be-dev/models"
 	"ticketing-be-dev/models/response"
@@ -13,12 +14,17 @@ import (
 	"github.com/gofiber/fiber/v2"
 )
 
+var ticketIDMutex = &sync.Mutex{}
+
 // generateTicketID returns the next ticket code like SR0000001
 func generateTicketID() string {
+	ticketIDMutex.Lock()
+	defer ticketIDMutex.Unlock()
+
 	var lastTicket models.CreateTicket
-	if err := middleware.DBConn.Order("ticket_id desc").First(&lastTicket).Error; err != nil {
+	if err := middleware.DBConn.Order("created_at desc").First(&lastTicket).Error; err != nil {
 		// No tickets yet
-		return "SR000001"
+		return "SR0000001"
 	}
 
 	// Extract numeric part
@@ -214,65 +220,65 @@ type TicketWithAttachments struct {
 
 // GetUserTickets returns tickets for the logged-in user
 func GetUserTickets(c *fiber.Ctx) error {
-    var tickets []models.CreateTicket
+	var tickets []models.CreateTicket
 
-    userID, err := middleware.GetUserIDFromJWT(c)
-    if err != nil {
-        return c.Status(fiber.StatusUnauthorized).JSON(response.ResponseModel{
-            RetCode: "401",
-            Message: "Unauthorized: User ID not found",
-        })
-    }
+	userID, err := middleware.GetUserIDFromJWT(c)
+	if err != nil {
+		return c.Status(fiber.StatusUnauthorized).JSON(response.ResponseModel{
+			RetCode: "401",
+			Message: "Unauthorized: User ID not found",
+		})
+	}
 
-    var user models.UserAccount
-    if err := middleware.DBConn.First(&user, userID).Error; err != nil {
-        return c.Status(fiber.StatusInternalServerError).JSON(response.ResponseModel{
-            RetCode: "500",
-            Message: "Failed to fetch user info",
-        })
-    }
+	var user models.UserAccount
+	if err := middleware.DBConn.First(&user, userID).Error; err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(response.ResponseModel{
+			RetCode: "500",
+			Message: "Failed to fetch user info",
+		})
+	}
 
-    if err := middleware.DBConn.
-        Where("username = ?", user.Username).
-        Order("created_at desc").
-        Find(&tickets).Error; err != nil {
+	if err := middleware.DBConn.
+		Where("username = ?", user.Username).
+		Order("created_at desc").
+		Find(&tickets).Error; err != nil {
 
-        return c.Status(fiber.StatusInternalServerError).JSON(response.ResponseModel{
-            RetCode: "500",
-            Message: "Failed to fetch tickets",
-        })
-    }
+		return c.Status(fiber.StatusInternalServerError).JSON(response.ResponseModel{
+			RetCode: "500",
+			Message: "Failed to fetch tickets",
+		})
+	}
 
-    // ✅ If no tickets
-    if len(tickets) == 0 {
-        return c.Status(fiber.StatusOK).JSON(response.ResponseModel{
-            RetCode: "200",
-            Message: "No tickets found",
-            Data:    []TicketWithAttachments{},
-        })
-    }
+	// ✅ If no tickets
+	if len(tickets) == 0 {
+		return c.Status(fiber.StatusOK).JSON(response.ResponseModel{
+			RetCode: "200",
+			Message: "No tickets found",
+			Data:    []TicketWithAttachments{},
+		})
+	}
 
-    // ✅ Attach attachments per ticket
-    var result []TicketWithAttachments
+	// ✅ Attach attachments per ticket
+	var result []TicketWithAttachments
 
-    for _, ticket := range tickets {
-        var attachments []models.TicketAttachment
+	for _, ticket := range tickets {
+		var attachments []models.TicketAttachment
 
-        middleware.DBConn.
-            Where("ticket_id = ?", ticket.TicketID).
-            Find(&attachments)
+		middleware.DBConn.
+			Where("ticket_id = ?", ticket.TicketID).
+			Find(&attachments)
 
-        result = append(result, TicketWithAttachments{
-            CreateTicket: ticket,
-            Attachments:  attachments,
-        })
-    }
+		result = append(result, TicketWithAttachments{
+			CreateTicket: ticket,
+			Attachments:  attachments,
+		})
+	}
 
-    return c.Status(fiber.StatusOK).JSON(response.ResponseModel{
-        RetCode: "200",
-        Message: "Tickets fetched successfully",
-        Data:    result,
-    })
+	return c.Status(fiber.StatusOK).JSON(response.ResponseModel{
+		RetCode: "200",
+		Message: "Tickets fetched successfully",
+		Data:    result,
+	})
 }
 
 func GetTicketByID(c *fiber.Ctx) error {
