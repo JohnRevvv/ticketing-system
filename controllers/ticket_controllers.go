@@ -46,6 +46,7 @@ func CreateTicket(c *fiber.Ctx) error {
 	// Parse ticket fields
 	ticket := models.CreateTicket{
 		TicketID:    generateTicketID(),
+		
 		Subject:     c.FormValue("subject"),
 		Category:    c.FormValue("category"),
 		Institution: c.FormValue("institution"),

@@ -41,7 +41,9 @@ func ConnectDB() bool {
 	if err := DBConn.AutoMigrate(
 		&models.UserAccount{},
 		&models.CreateTicket{},
-		&models.PasswordResetToken{});
+		&models.PasswordResetToken{},
+		&models.TicketAttachment{},
+		&models.TicketRemark{});
 		err != nil {
 		log.Println("❌ Auto-migration failed:", err)
 		return true
