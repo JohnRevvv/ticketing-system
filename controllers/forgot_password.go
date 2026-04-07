@@ -1,16 +1,17 @@
 package controllers
 
 import (
-	"crypto/tls"
+	"fmt"
+	"log"
+	"math/rand"
 	"ticketing-be-dev/middleware"
 	"ticketing-be-dev/models"
 	"ticketing-be-dev/models/response"
+	"ticketing-be-dev/services"
 	"time"
 
 	"github.com/gofiber/fiber/v2"
-	"github.com/google/uuid"
 	"golang.org/x/crypto/bcrypt"
-	"gopkg.in/gomail.v2"
 )
 
 // -----------------------------
@@ -40,12 +41,20 @@ func ForgotPassword(c *fiber.Ctx) error {
 		})
 	}
 
-	// Generate token
-	token := uuid.New().String()
+	// ✅ Generate 6-digit OTP
+	rand.Seed(time.Now().UnixNano())
+	otp := fmt.Sprintf("%06d", rand.Intn(1000000))
+
+	// ✅ Delete old OTPs
+	middleware.DBConn.
+		Where("user_id = ?", user.UserID).
+		Delete(&models.PasswordResetToken{})
+
+	// ✅ Create new OTP
 	resetToken := models.PasswordResetToken{
 		UserID:    user.UserID,
-		Token:     token,
-		ExpiresAt: time.Now().Add(15 * time.Minute),
+		Token:     otp,
+		ExpiresAt: time.Now().Add(5 * time.Minute),
 	}
 
 	if err := middleware.DBConn.Create(&resetToken).Error; err != nil {
@@ -55,34 +64,18 @@ func ForgotPassword(c *fiber.Ctx) error {
 		})
 	}
 
-	// Send email async
+	// ✅ Send email ONCE (async)
 	go func() {
-		m := gomail.NewMessage()
-		m.SetHeader("From", "no-reply@example.com") // sender
-		m.SetHeader("To", user.Email)
-		m.SetHeader("Subject", "Ticket System Password Reset Code")
-		m.SetBody("text/html",
-			"Hello,<br><br>"+
-				"Your verification code is: <b>"+token+"</b><br>"+
-				"It expires in 15 minutes.<br><br>"+
-				"If you didn't request this, ignore this email.<br><br>"+
-				"Thanks,<br>Ticket System Team",
-		)
-
-		d := gomail.NewDialer("smtp.gmail.com", 587, "yourgmail@gmail.com", "your-app-password")
-		d.TLSConfig = &tls.Config{InsecureSkipVerify: true}
-
-		if err := d.DialAndSend(m); err != nil {
-			println("Email sending failed:", err.Error())
+		if err := services.SendResetPasswordEmail(user.Email, otp); err != nil {
+			log.Println("Email sending failed:", err)
 		}
 	}()
 
-	// For testing/dev only, include token in response
 	return c.Status(fiber.StatusOK).JSON(response.ResponseModel{
 		RetCode: "200",
 		Message: "If the email exists, a verification code has been sent",
 		Data: fiber.Map{
-			"reset_token": token, // remove in production
+			"reset_token": otp, // ⚠️ remove in production
 		},
 	})
 }

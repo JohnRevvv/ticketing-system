@@ -15,7 +15,6 @@ type CreateTicket struct {
 	Assignee    string `json:"assignee"`
 	Endorser    string `json:"endorser"`
 	Approver    string `json:"approver"`
-	Remarks     string `json:"remarks"`
 	Status      string `json:"status" gorm:"default:'for endorsement'"`
 	CreatedAt   time.Time
 	UpdatedAt   time.Time
@@ -38,4 +37,16 @@ type TicketAttachment struct {
 
 func (TicketAttachment) TableName() string {
 	return "ticket_attachments"
+}
+
+type TicketRemark struct {
+    RemarkID  string    `gorm:"primaryKey"`
+    TicketID  string
+    UserID    string
+    Message   string
+    CreatedAt time.Time
+}
+
+func (TicketRemark) TableName() string {
+	return "ticketremark"
 }

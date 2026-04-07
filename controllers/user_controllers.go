@@ -12,7 +12,6 @@ import (
 	"golang.org/x/crypto/bcrypt"
 )
 
-// RegisterUser registers a new user with default status "active"
 func Register(c *fiber.Ctx) error {
 	var body struct {
 		Username string `json:"username"`
@@ -80,7 +79,6 @@ func Register(c *fiber.Ctx) error {
 	})
 }
 
-// LoginUser logs in only if status is active
 func Login(c *fiber.Ctx) error {
 	var body struct {
 		Username string `json:"username"` // can be username OR email

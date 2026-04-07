@@ -8,6 +8,38 @@ import (
 	"ticketing-be-dev/models"
 )
 
+func SendResetPasswordEmail(toEmail string, code string) error {
+	from := os.Getenv("EMAIL_ADDRESS")
+	password := os.Getenv("EMAIL_PASSWORD")
+	smtpHost := os.Getenv("SMTP_HOST")
+
+	auth := smtp.PlainAuth("", from, password, smtpHost)
+
+	subject := "Ticket System Password Reset Code"
+
+	body := fmt.Sprintf(`
+Hello,
+
+Your verification code is: %s
+
+This code will expire in 15 minutes.
+
+If you did not request this, please ignore this email.
+
+Thank you.
+`, code)
+
+	msg := []byte("Subject: " + subject + "\r\n\r\n" + body)
+	to := []string{toEmail}
+
+	err := smtp.SendMail(smtpHost+":587", auth, from, to, msg)
+	if err != nil {
+		log.Println("Failed to send reset email:", err)
+	}
+
+	return err
+}
+
 // SendEndorserNotification sends an email to the endorser
 func SendEndorserNotification(ticket models.CreateTicket, toEmail string) error {
 	from := os.Getenv("EMAIL_ADDRESS")

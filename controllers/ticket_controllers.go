@@ -1,6 +1,7 @@
 package controllers
 
 import (
+	"encoding/csv"
 	"fmt"
 	"log"
 	"os"
@@ -15,11 +16,12 @@ import (
 	"time"
 
 	"github.com/gofiber/fiber/v2"
+	"github.com/google/uuid"
 )
 
 var ticketIDMutex = &sync.Mutex{}
 
-// generateTicketID returns the next ticket code like SR0000001
+// generateTicketID returns the next ticket code like SR00001
 func generateTicketID() string {
 	ticketIDMutex.Lock()
 	defer ticketIDMutex.Unlock()
@@ -336,12 +338,12 @@ func GetTicketByID(c *fiber.Ctx) error {
 	})
 }
 
-func GetTicketsReport(c *fiber.Ctx) error {
+func ExportTicketsCSV(c *fiber.Ctx) error {
 	var tickets []models.CreateTicket
 
 	// Optional query params
-	month := c.Query("month")   // "4"
-	year := c.Query("year")     // "2026"
+	month := c.Query("month") // e.g., "4"
+	year := c.Query("year")   // e.g., "2026"
 
 	db := middleware.DBConn
 
@@ -356,44 +358,142 @@ func GetTicketsReport(c *fiber.Ctx) error {
 		}
 	}
 
+	// Preload users involved (if you have separate user table)
 	if err := db.Order("created_at desc").Find(&tickets).Error; err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(response.ResponseModel{
-			RetCode: "500",
-			Message: "Failed to fetch tickets",
+		return c.Status(fiber.StatusInternalServerError).SendString("Failed to fetch tickets")
+	}
+
+	// Prepare CSV headers
+	c.Set("Content-Type", "text/csv")
+	c.Set("Content-Disposition", `attachment;filename="tickets_report.csv"`)
+	writer := csv.NewWriter(c.Response().BodyWriter())
+	defer writer.Flush()
+
+	headers := []string{
+		"Ticket ID", "Creator", "Category", "Subject", "Institution",
+		"Type", "Description", "Purpose", "Priority",
+		"Assignee", "Endorser", "Approver", "Status",
+		"Created At", "Updated At", "Cancelled By", "Cancelled At",
+	}
+	writer.Write(headers)
+
+	// Write ticket rows
+	for _, t := range tickets {
+		row := []string{
+			t.TicketID,
+			t.Username,          // Creator
+			t.Category,
+			t.Subject,
+			t.Institution,
+			t.Tickettype,
+			t.Description,
+			t.Purpose,
+			t.Priority,
+			t.Assignee,
+			t.Endorser,
+			t.Approver,
+			t.Status,
+			t.CreatedAt.Format("2006-01-02 15:04:05"),
+			t.UpdatedAt.Format("2006-01-02 15:04:05"),
+			t.CancelledBy,
+			"",
+		}
+		if t.CancelledAt != nil {
+			row[17] = t.CancelledAt.Format("2006-01-02 15:04:05")
+		}
+		writer.Write(row)
+	}
+
+	return nil
+}
+
+//============================================
+// TICKET REMARKS FUNCTION!!
+//============================================
+func CreateTicketRemark(c *fiber.Ctx) error {
+	var input struct {
+		TicketID string `json:"ticket_id"`
+		UserID   string `json:"user_id"`
+		Message  string `json:"message"`
+	}
+
+	// Parse body
+	if err := c.BodyParser(&input); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(response.ResponseModel{
+			RetCode: "400",
+			Message: "Invalid request body",
 		})
 	}
 
-	// Build table report (same as previous example)
-	report := make([]map[string]interface{}, len(tickets))
-	for i, t := range tickets {
-		report[i] = map[string]interface{}{
-			"Ticket ID":    t.TicketID,
-			"Username":     t.Username,
-			"Category":     t.Category,
-			"Subject":      t.Subject,
-			"Institution":  t.Institution,
-			"Type":         t.Tickettype,
-			"Description":  t.Description,
-			"Purpose":      t.Purpose,
-			"Priority":     t.Priority,
-			"Assignee":     t.Assignee,
-			"Endorser":     t.Endorser,
-			"Approver":     t.Approver,
-			"Remarks":      t.Remarks,
-			"Status":       t.Status,
-			"Created At":   t.CreatedAt.Format("2006-01-02 15:04:05"),
-			"Updated At":   t.UpdatedAt.Format("2006-01-02 15:04:05"),
-			"Cancelled By": t.CancelledBy,
-			"Cancelled At": "",
-		}
-		if t.CancelledAt != nil {
-			report[i]["Cancelled At"] = t.CancelledAt.Format("2006-01-02 15:04:05")
-		}
+	// Validate
+	if input.TicketID == "" || input.UserID == "" || input.Message == "" {
+		return c.Status(fiber.StatusBadRequest).JSON(response.ResponseModel{
+			RetCode: "400",
+			Message: "ticket_id, user_id, and message are required",
+		})
+	}
+
+	remark := models.TicketRemark{
+		RemarkID:  uuid.New().String(),
+		TicketID:  input.TicketID,
+		UserID:    input.UserID,
+		Message:   input.Message,
+		CreatedAt: time.Now(),
+	}
+
+	// Save to DB
+	if err := middleware.DBConn.Create(&remark).Error; err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(response.ResponseModel{
+			RetCode: "500",
+			Message: "Failed to create remark",
+		})
 	}
 
 	return c.Status(fiber.StatusOK).JSON(response.ResponseModel{
 		RetCode: "200",
-		Message: "Ticket report generated successfully",
-		Data:    report,
+		Message: "Remark added successfully",
+		Data:    remark,
+	})
+}
+
+func GetRemarksByTicket(c *fiber.Ctx) error {
+	ticketID := c.Params("ticket_id")
+
+	var remarks []models.TicketRemark
+
+	// Fetch remarks by ticket ordered by time (chat flow)
+	if err := middleware.DBConn.
+		Where("ticket_id = ?", ticketID).
+		Order("created_at asc").
+		Find(&remarks).Error; err != nil {
+
+		return c.Status(fiber.StatusInternalServerError).JSON(response.ResponseModel{
+			RetCode: "500",
+			Message: "Failed to fetch remarks",
+		})
+	}
+
+	// Prepare response (optional join later if needed)
+	var responseData []fiber.Map
+
+	for _, remark := range remarks {
+		responseData = append(responseData, fiber.Map{
+			"remark": remark,
+		})
+	}
+
+	// If no remarks found
+	if len(remarks) == 0 {
+		return c.Status(fiber.StatusOK).JSON(response.ResponseModel{
+			RetCode: "200",
+			Message: "No remarks found",
+			Data:    []string{},
+		})
+	}
+
+	return c.Status(fiber.StatusOK).JSON(response.ResponseModel{
+		RetCode: "200",
+		Message: "Remarks fetched successfully",
+		Data:    responseData,
 	})
 }
