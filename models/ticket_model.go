@@ -10,7 +10,6 @@ type CreateTicket struct {
 	Institution string `json:"institution"`
 	Tickettype  string `json:"tickettype"`
 	Description string `json:"description"`
-	Purpose     string `json:"purpose"`
 	Priority    string `json:"priority"`
 	Assignee    string `json:"assignee"`
 	Endorser    string `json:"endorser"`

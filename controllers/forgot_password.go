@@ -30,14 +30,16 @@ func ForgotPassword(c *fiber.Ctx) error {
 	}
 
 	var user models.UserAccount
-	if err := middleware.DBConn.
-		Where("email = ?", body.Email).
-		First(&user).Error; err != nil {
 
-		// Don't reveal email existence
+	err := middleware.DBConn.
+		Where("email = ?", body.Email).
+		First(&user).Error
+
+	// ❌ Email NOT found
+	if err != nil {
 		return c.Status(fiber.StatusOK).JSON(response.ResponseModel{
-			RetCode: "200",
-			Message: "If the email exists, a verification code has been sent",
+			RetCode: "404",
+			Message: "No email registered",
 		})
 	}
 
@@ -73,7 +75,7 @@ func ForgotPassword(c *fiber.Ctx) error {
 
 	return c.Status(fiber.StatusOK).JSON(response.ResponseModel{
 		RetCode: "200",
-		Message: "If the email exists, a verification code has been sent",
+		Message: "Verification code has been sent to your email",
 		Data: fiber.Map{
 			"reset_token": otp, // ⚠️ remove in production
 		},
@@ -170,6 +172,16 @@ func ResetPassword(c *fiber.Ctx) error {
 			RetCode: "500",
 			Message: "Failed to update password",
 		})
+	}
+
+	// Get user email
+	var user models.UserAccount
+	if err := middleware.DBConn.First(&user, resetToken.UserID).Error; err != nil {
+		log.Println("Failed to fetch user for email:", err)
+	} else if user.Email != "" {
+		// Send notification asynchronously
+		// Send notification asynchronously
+		go services.SendPasswordResetSuccessEmail(user.Email, user.Username)
 	}
 
 	middleware.DBConn.Delete(&resetToken)

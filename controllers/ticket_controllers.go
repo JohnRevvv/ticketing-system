@@ -34,9 +34,9 @@ func generateTicketID() string {
 
 	// Extract numeric part
 	var num int
-	fmt.Sscanf(lastTicket.TicketID, "SR%07d", &num)
+	fmt.Sscanf(lastTicket.TicketID, "SR%06d", &num)
 	num++
-	return fmt.Sprintf("SR%07d", num)
+	return fmt.Sprintf("SR%06d", num)
 }
 
 func CreateTicket(c *fiber.Ctx) error {
@@ -46,13 +46,11 @@ func CreateTicket(c *fiber.Ctx) error {
 	// Parse ticket fields
 	ticket := models.CreateTicket{
 		TicketID:    generateTicketID(),
-		
 		Subject:     c.FormValue("subject"),
 		Category:    c.FormValue("category"),
 		Institution: c.FormValue("institution"),
 		Tickettype:  c.FormValue("tickettype"),
 		Description: c.FormValue("description"),
-		Purpose:     c.FormValue("purpose"),
 		Assignee:    c.FormValue("assignee"),
 		Priority:    c.FormValue("priority"),
 		Endorser:    c.FormValue("endorser"),
@@ -388,7 +386,6 @@ func ExportTicketsCSV(c *fiber.Ctx) error {
 			t.Institution,
 			t.Tickettype,
 			t.Description,
-			t.Purpose,
 			t.Priority,
 			t.Assignee,
 			t.Endorser,

@@ -18,6 +18,7 @@ func AppRoutes(app *fiber.App) {
 
 	api.Post("/forgot-password", controllers.ForgotPassword)
 	api.Post("/reset-password", controllers.ResetPassword)
+	api.Post("/verify-code", controllers.VerifyCode)
 
 	// ==============================
 	// User routes (JWT required)

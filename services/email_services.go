@@ -17,24 +17,142 @@ func SendResetPasswordEmail(toEmail string, code string) error {
 
 	subject := "Ticket System Password Reset Code"
 
+	// HTML body with centered, bold code
 	body := fmt.Sprintf(`
-Hello,
-
-Your verification code is: %s
-
-This code will expire in 15 minutes.
-
-If you did not request this, please ignore this email.
-
-Thank you.
+<!DOCTYPE html>
+<html>
+<head>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background-color: #f5f5f5;
+      color: #333333;
+      padding: 20px;
+    }
+    .container {
+      background-color: #ffffff;
+      padding: 30px;
+      border-radius: 10px;
+      text-align: center;
+      max-width: 500px;
+      margin: auto;
+      box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+    }
+    .code {
+      display: inline-block;
+      font-size: 32px;
+      font-weight: bold;
+      margin: 20px 0;
+      padding: 15px 25px;
+      background-color: #e0e0e0;
+      border-radius: 8px;
+      letter-spacing: 5px;
+    }
+    .footer {
+      font-size: 14px;
+      color: #666666;
+      margin-top: 20px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h2>Reset Password Code</h2>
+    <p>Your verification code is:</p>
+    <div class="code">%s</div>
+    <p>This code will expire in 15 minutes.</p>
+    <p class="footer">If you did not request this, please ignore this email.<br>Thank you.</p>
+  </div>
+</body>
+</html>
 `, code)
 
-	msg := []byte("Subject: " + subject + "\r\n\r\n" + body)
+	// Include Content-Type header for HTML emails
+	msg := []byte("Subject: " + subject + "\r\n" +
+		"MIME-Version: 1.0\r\n" +
+		"Content-Type: text/html; charset=\"UTF-8\"\r\n\r\n" +
+		body)
+
 	to := []string{toEmail}
 
 	err := smtp.SendMail(smtpHost+":587", auth, from, to, msg)
 	if err != nil {
 		log.Println("Failed to send reset email:", err)
+	}
+
+	return err
+}
+
+func SendPasswordResetSuccessEmail(toEmail string, username string) error {
+	from := os.Getenv("EMAIL_ADDRESS")
+	password := os.Getenv("EMAIL_PASSWORD")
+	smtpHost := os.Getenv("SMTP_HOST")
+
+	auth := smtp.PlainAuth("", from, password, smtpHost)
+
+	subject := "✅ Password Reset Successful"
+
+	// HTML body
+	body := fmt.Sprintf(`
+<!DOCTYPE html>
+<html>
+<head>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background-color: #f5f5f5;
+      color: #333333;
+      padding: 20px;
+    }
+    .container {
+      background-color: #ffffff;
+      padding: 30px;
+      border-radius: 10px;
+      text-align: center;
+      max-width: 500px;
+      margin: auto;
+      box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+    }
+    .success {
+      display: inline-block;
+      font-size: 28px;
+      font-weight: bold;
+      margin: 20px 0;
+      padding: 15px 25px;
+      background-color: #d4edda;
+      color: #155724;
+      border-radius: 8px;
+    }
+    .footer {
+      font-size: 14px;
+      color: #666666;
+      margin-top: 20px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h2>Password Reset Successful</h2>
+    <p>Hello %s,</p>
+    <div class="success">Your password has been successfully reset!</div>
+    <p>You can now log in using your new password.</p>
+    <p class="footer">If you did not perform this action, please contact support immediately.</p>
+  </div>
+</body>
+</html>
+`, username)
+
+	// Include Content-Type header for HTML emails
+	msg := []byte("Subject: " + subject + "\r\n" +
+		"MIME-Version: 1.0\r\n" +
+		"Content-Type: text/html; charset=\"UTF-8\"\r\n\r\n" +
+		body)
+
+	to := []string{toEmail}
+
+	err := smtp.SendMail(smtpHost+":587", auth, from, to, msg)
+	if err != nil {
+		log.Println("Failed to send password reset success email:", err)
 	}
 
 	return err
@@ -79,7 +197,6 @@ Thank you.
 
 	return err
 }
-
 
 // SendApproverNotification sends an email to the approver after endorsement
 func SendApproverNotification(ticket models.CreateTicket, toEmail string) error {
