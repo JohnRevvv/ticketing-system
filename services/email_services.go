@@ -104,6 +104,9 @@ func SendPasswordResetSuccessEmail(toEmail string, username string) error {
       color: #333333;
       padding: 20px;
     }
+	h2 {
+	font-weight: bold;
+	}
     .container {
       background-color: #ffffff;
       padding: 30px;
@@ -206,7 +209,7 @@ func SendApproverNotification(ticket models.CreateTicket, toEmail string) error 
 
 	auth := smtp.PlainAuth("", from, password, smtpHost)
 
-	subject := "🔔 Ticket Ready for Your Approval"
+	subject := "🔔 Ticket Ready for Your Approval 🔔"
 	body := fmt.Sprintf(`
 Hello %s,
 
