@@ -405,6 +405,40 @@ func ExportTicketsCSV(c *fiber.Ctx) error {
 	return nil
 }
 
+func ViewAttachment(c *fiber.Ctx) error {
+	// Get attachment ID or filename from params
+	attachmentID := c.Params("id")
+
+	var attachment models.TicketAttachment
+
+	// Find attachment in DB
+	if err := middleware.DBConn.
+		Where("id = ?", attachmentID).
+		First(&attachment).Error; err != nil {
+
+		return c.Status(fiber.StatusNotFound).JSON(response.ResponseModel{
+			RetCode: "404",
+			Message: "Attachment not found",
+		})
+	}
+
+	// Check if file exists
+	if _, err := os.Stat(attachment.FilePath); os.IsNotExist(err) {
+		return c.Status(fiber.StatusNotFound).JSON(response.ResponseModel{
+			RetCode: "404",
+			Message: "File not found on server",
+		})
+	}
+
+	// Option 1: Display in browser (for images, pdf, etc.)
+	return c.SendFile(attachment.FilePath)
+
+	// Option 2 (force download instead):
+	/*
+		return c.Download(attachment.FilePath, attachment.FileName)
+	*/
+}
+
 // ============================================
 // TICKET REMARKS FUNCTION!!
 // ============================================

@@ -40,4 +40,5 @@ func AppRoutes(app *fiber.App) {
 	userRoutes.Get("/list/all/tickets", controllers.GetAllTickets)
 	userRoutes.Get("/tickets/:id", controllers.GetTicketByID)
 	userRoutes.Get("/get/me", controllers.GetCurrentUser)
+	userRoutes.Get("/attachments/:id", controllers.ViewAttachment)
 }
