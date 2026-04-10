@@ -10,6 +10,8 @@ import (
 func AppRoutes(app *fiber.App) {
 	api := app.Group("/api")
 
+	app.Static("/uploads", "./uploads")
+
 	// ==============================
 	// Public routes (no token needed)
 	// ==============================
@@ -34,6 +36,7 @@ func AppRoutes(app *fiber.App) {
 	userRoutes.Get("/tickets/:id", controllers.GetTicketByID)
 	userRoutes.Get("/list/all/users", controllers.GetAllUsers)
 	userRoutes.Put("/update/user/:id", controllers.UpdateUserRoleStatus)
+	userRoutes.Put("/update/profile/:id", controllers.UpdateUserProfile)
 	userRoutes.Get("/list/all/tickets", controllers.GetAllTickets)
 	userRoutes.Get("/tickets/:id", controllers.GetTicketByID)
 	userRoutes.Get("/get/me", controllers.GetCurrentUser)

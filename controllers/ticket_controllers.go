@@ -380,7 +380,7 @@ func ExportTicketsCSV(c *fiber.Ctx) error {
 	for _, t := range tickets {
 		row := []string{
 			t.TicketID,
-			t.Username,          // Creator
+			t.Username, // Creator
 			t.Category,
 			t.Subject,
 			t.Institution,
@@ -405,9 +405,9 @@ func ExportTicketsCSV(c *fiber.Ctx) error {
 	return nil
 }
 
-//============================================
+// ============================================
 // TICKET REMARKS FUNCTION!!
-//============================================
+// ============================================
 func CreateTicketRemark(c *fiber.Ctx) error {
 	var input struct {
 		TicketID string `json:"ticket_id"`
