@@ -32,15 +32,20 @@ func main() {
 
 	// Fiber app
 	app := fiber.New()
-
 	app.Use(logger.New())
 
-	// ✅ ADD THIS
+	// CORS
 	app.Use(cors.New(cors.Config{
 		AllowOrigins: "*",
 		AllowMethods: "GET,POST,PUT,DELETE,OPTIONS",
 		AllowHeaders: "Origin, Content-Type, Accept, Authorization",
 	}))
+
+	// ── Static file serving ───────────────────────────────────────────────────
+	// Files are saved to ./upload/attachments/xxx on disk.
+	// This maps GET /uploads/* → ./upload/* so the frontend can access them.
+	// Example: http://localhost:8080/uploads/attachments/SR000003_xxx.png
+	app.Static("/uploads", "./upload")
 
 	// Health check
 	app.Get("/", func(c *fiber.Ctx) error {
@@ -54,5 +59,6 @@ func main() {
 	if port == "" {
 		port = "8080"
 	}
+
 	log.Fatal(app.Listen(fmt.Sprintf(":%s", port)))
 }

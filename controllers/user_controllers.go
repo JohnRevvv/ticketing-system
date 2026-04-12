@@ -256,6 +256,11 @@ func EndorseTicket(c *fiber.Ctx) error {
 	})
 }
 
+// ── REPLACE your ApproveTicket function with this ──────────────────────────
+
+// ── Replace ONLY the ApproveTicket function in your user controller ──────────
+// The rest of the file stays exactly the same.
+
 func ApproveTicket(c *fiber.Ctx) error {
 	ticketID := c.Params("id")
 
@@ -310,16 +315,20 @@ func ApproveTicket(c *fiber.Ctx) error {
 		})
 	}
 
-	// Approve ticket
-	ticket.Status = "for assignment"
-	if err := middleware.DBConn.Save(&ticket).Error; err != nil {
+	// Save approver username + update status
+	if err := middleware.DBConn.Model(&ticket).Updates(map[string]interface{}{
+		"status":   "for assignment",
+		"approver": user.Username,
+	}).Error; err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(response.ResponseModel{
 			RetCode: "500",
 			Message: "Failed to update ticket",
 		})
 	}
 
-	// Send email to all resolvers
+	// ── Send email to every resolver ─────────────────────────────────────────
+	// FIX: pass r.Username so each resolver gets a personalised greeting
+	// instead of the empty ticket.Assignee field.
 	var resolvers []models.UserAccount
 	if err := middleware.DBConn.Where("role = ?", "resolver").Find(&resolvers).Error; err != nil {
 		log.Println("Failed to fetch resolvers:", err)
@@ -327,13 +336,132 @@ func ApproveTicket(c *fiber.Ctx) error {
 
 	for _, r := range resolvers {
 		if r.Email != "" {
-			go services.SendResolverNotification(ticket, r.Email)
+			resolverUsername := r.Username // capture loop variable for goroutine
+			resolverEmail := r.Email
+			go func() {
+				if err := services.SendResolverNotification(ticket, resolverUsername, resolverEmail); err != nil {
+					log.Println("Failed to send resolver email to", resolverEmail, ":", err)
+				}
+			}()
 		}
 	}
 
 	return c.Status(fiber.StatusOK).JSON(response.ResponseModel{
 		RetCode: "200",
 		Message: "Ticket approved successfully and resolvers notified",
+		Data:    ticket,
+	})
+}
+
+// ── REPLACE your CancelTicket function with this ────────────────────────────
+// Now allows the ticket CREATOR (any role) to cancel their own ticket,
+// in addition to the existing role-based rules.
+
+func CancelTicket(c *fiber.Ctx) error {
+	ticketID := c.Params("id")
+
+	// Get user from JWT
+	userID, err := middleware.GetUserIDFromJWT(c)
+	if err != nil {
+		return c.Status(fiber.StatusUnauthorized).JSON(response.ResponseModel{
+			RetCode: "401",
+			Message: "Unauthorized",
+		})
+	}
+
+	// Get user info
+	var user models.UserAccount
+	if err := middleware.DBConn.First(&user, userID).Error; err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(response.ResponseModel{
+			RetCode: "500",
+			Message: "Failed to fetch user",
+		})
+	}
+
+	// Get ticket
+	var ticket models.CreateTicket
+	if err := middleware.DBConn.Where("ticket_id = ?", ticketID).First(&ticket).Error; err != nil {
+		return c.Status(fiber.StatusNotFound).JSON(response.ResponseModel{
+			RetCode: "404",
+			Message: "Ticket not found",
+		})
+	}
+
+	// Already cancelled or resolved — nothing to do
+	if ticket.Status == "cancelled" {
+		return c.Status(fiber.StatusBadRequest).JSON(response.ResponseModel{
+			RetCode: "400",
+			Message: "Ticket is already cancelled",
+		})
+	}
+	if ticket.Status == "resolved" {
+		return c.Status(fiber.StatusBadRequest).JSON(response.ResponseModel{
+			RetCode: "400",
+			Message: "Resolved tickets cannot be cancelled",
+		})
+	}
+
+	// =========================
+	// ✅ ROLE + OWNERSHIP CHECK
+	// =========================
+	canCancel := false
+
+	switch user.Role {
+	case "admin":
+		// Admin can always cancel
+		canCancel = true
+
+	case "endorser":
+		if ticket.Status == "for endorsement" {
+			canCancel = true
+		}
+
+	case "approver":
+		if ticket.Status == "for approval" {
+			canCancel = true
+		}
+
+	case "resolver":
+		// Resolver can cancel only tickets assigned to them
+		if ticket.Assignee == user.Username {
+			canCancel = true
+		}
+	}
+
+	// ✅ FIXED: The ticket CREATOR can cancel regardless of their role,
+	// as long as the ticket is not yet in progress or resolved.
+	if ticket.Username == user.Username &&
+		ticket.Status != "in progress" &&
+		ticket.Status != "resolved" &&
+		ticket.Status != "cancelled" {
+		canCancel = true
+	}
+
+	if !canCancel {
+		return c.Status(fiber.StatusForbidden).JSON(response.ResponseModel{
+			RetCode: "403",
+			Message: "You are not allowed to cancel this ticket at this stage",
+		})
+	}
+
+	// =========================
+	// ✅ CANCEL TICKET
+	// =========================
+	now := time.Now()
+	if err := middleware.DBConn.Model(&ticket).Updates(map[string]interface{}{
+		"status":       "cancelled",
+		"cancelled_by": user.Username,
+		"cancelled_at": now,
+	}).Error; err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(response.ResponseModel{
+			RetCode: "500",
+			Message: "Failed to cancel ticket",
+		})
+	}
+
+	return c.Status(fiber.StatusOK).JSON(response.ResponseModel{
+		RetCode: "200",
+		Message: "Ticket cancelled successfully",
 		Data:    ticket,
 	})
 }
@@ -411,6 +539,8 @@ func GrabTicket(c *fiber.Ctx) error {
 	})
 }
 
+// ── Replace ONLY the ResolveTicket function in your user controller ──────────
+
 func ResolveTicket(c *fiber.Ctx) error {
 	ticketID := c.Params("id")
 
@@ -449,7 +579,7 @@ func ResolveTicket(c *fiber.Ctx) error {
 		})
 	}
 
-	// ❌ Must be in progress
+	// Must be in progress
 	if ticket.Status != "in progress" {
 		return c.Status(fiber.StatusBadRequest).JSON(response.ResponseModel{
 			RetCode: "400",
@@ -457,7 +587,7 @@ func ResolveTicket(c *fiber.Ctx) error {
 		})
 	}
 
-	// ❌ Only assigned resolver can resolve
+	// Only the assigned resolver can resolve
 	if ticket.Assignee != user.Username {
 		return c.Status(fiber.StatusForbidden).JSON(response.ResponseModel{
 			RetCode: "403",
@@ -465,7 +595,7 @@ func ResolveTicket(c *fiber.Ctx) error {
 		})
 	}
 
-	// ✅ Resolve ticket
+	// ✅ Mark as resolved
 	if err := middleware.DBConn.Model(&ticket).Update("status", "resolved").Error; err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(response.ResponseModel{
 			RetCode: "500",
@@ -473,95 +603,27 @@ func ResolveTicket(c *fiber.Ctx) error {
 		})
 	}
 
+	// ── Notify the person who filed the ticket ────────────────────────────────
+	// ticket.Username holds the submitter's username — look up their email
+	var submitter models.UserAccount
+	if err := middleware.DBConn.
+		Where("username = ?", ticket.Username).
+		First(&submitter).Error; err != nil {
+		// Not a fatal error — ticket is already resolved, just log it
+		log.Println("Could not find submitter to send resolved email:", err)
+	} else if submitter.Email != "" {
+		submitterUsername := submitter.Username
+		submitterEmail := submitter.Email
+		go func() {
+			if err := services.SendTicketResolvedEmail(ticket, submitterUsername, submitterEmail); err != nil {
+				log.Println("Failed to send resolved email:", err)
+			}
+		}()
+	}
+
 	return c.Status(fiber.StatusOK).JSON(response.ResponseModel{
 		RetCode: "200",
 		Message: "Ticket resolved successfully",
-		Data:    ticket,
-	})
-}
-
-func CancelTicket(c *fiber.Ctx) error {
-	ticketID := c.Params("id")
-
-	// Get user from JWT
-	userID, err := middleware.GetUserIDFromJWT(c)
-	if err != nil {
-		return c.Status(fiber.StatusUnauthorized).JSON(response.ResponseModel{
-			RetCode: "401",
-			Message: "Unauthorized",
-		})
-	}
-
-	// Get user info
-	var user models.UserAccount
-	if err := middleware.DBConn.First(&user, userID).Error; err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(response.ResponseModel{
-			RetCode: "500",
-			Message: "Failed to fetch user",
-		})
-	}
-
-	// Get ticket
-	var ticket models.CreateTicket
-	if err := middleware.DBConn.Where("ticket_id = ?", ticketID).First(&ticket).Error; err != nil {
-		return c.Status(fiber.StatusNotFound).JSON(response.ResponseModel{
-			RetCode: "404",
-			Message: "Ticket not found",
-		})
-	}
-
-	// =========================
-	// ✅ ROLE + STATUS CHECK
-	// =========================
-	canCancel := false
-
-	switch user.Role {
-
-	case "admin":
-		canCancel = true
-
-	case "endorser":
-		if ticket.Status == "for endorsement" {
-			canCancel = true
-		}
-
-	case "approver":
-		if ticket.Status == "for approval" {
-			canCancel = true
-		}
-
-	case "enduser":
-		// owner can cancel if NOT yet assigned / in progress
-		if ticket.Username == user.Username && ticket.Status != "in progress" {
-			canCancel = true
-		}
-	}
-
-	if !canCancel {
-		return c.Status(fiber.StatusForbidden).JSON(response.ResponseModel{
-			RetCode: "403",
-			Message: "You are not allowed to cancel this ticket",
-		})
-	}
-
-	// =========================
-	// ✅ CANCEL TICKET
-	// =========================
-	if err := middleware.DBConn.Model(&ticket).Updates(map[string]interface{}{
-		"status":       "cancelled",
-		"cancelled_by": user.Username,
-		"cancelled_at": time.Now(),
-	}).Error; err != nil {
-
-		return c.Status(fiber.StatusInternalServerError).JSON(response.ResponseModel{
-			RetCode: "500",
-			Message: "Failed to cancel ticket",
-		})
-	}
-
-	return c.Status(fiber.StatusOK).JSON(response.ResponseModel{
-		RetCode: "200",
-		Message: "Ticket cancelled successfully",
 		Data:    ticket,
 	})
 }

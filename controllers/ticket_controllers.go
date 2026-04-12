@@ -341,12 +341,11 @@ func ExportTicketsCSV(c *fiber.Ctx) error {
 	var tickets []models.CreateTicket
 
 	// Optional query params
-	month := c.Query("month") // e.g., "4"
-	year := c.Query("year")   // e.g., "2026"
+	month := c.Query("month")
+	year := c.Query("year")
 
 	db := middleware.DBConn
 
-	// Filter by month/year if provided
 	if month != "" && year != "" {
 		m, err1 := strconv.Atoi(month)
 		y, err2 := strconv.Atoi(year)
@@ -357,47 +356,60 @@ func ExportTicketsCSV(c *fiber.Ctx) error {
 		}
 	}
 
-	// Preload users involved (if you have separate user table)
 	if err := db.Order("created_at desc").Find(&tickets).Error; err != nil {
 		return c.Status(fiber.StatusInternalServerError).SendString("Failed to fetch tickets")
 	}
 
-	// Prepare CSV headers
 	c.Set("Content-Type", "text/csv")
 	c.Set("Content-Disposition", `attachment;filename="tickets_report.csv"`)
 	writer := csv.NewWriter(c.Response().BodyWriter())
 	defer writer.Flush()
 
+	// 17 headers → indices 0–16
 	headers := []string{
-		"Ticket ID", "Creator", "Category", "Subject", "Institution",
-		"Type", "Description", "Purpose", "Priority",
-		"Assignee", "Endorser", "Approver", "Status",
-		"Created At", "Updated At", "Cancelled By", "Cancelled At",
+		"Ticket ID",    // 0
+		"Creator",      // 1
+		"Category",     // 2
+		"Subject",      // 3
+		"Institution",  // 4
+		"Type",         // 5
+		"Description",  // 6
+		"Priority",     // 7
+		"Assignee",     // 8
+		"Endorser",     // 9
+		"Approver",     // 10
+		"Status",       // 11
+		"Created At",   // 12
+		"Updated At",   // 13
+		"Cancelled By", // 14
+		"Cancelled At", // 15
 	}
 	writer.Write(headers)
 
-	// Write ticket rows
 	for _, t := range tickets {
-		row := []string{
-			t.TicketID,
-			t.Username, // Creator
-			t.Category,
-			t.Subject,
-			t.Institution,
-			t.Tickettype,
-			t.Description,
-			t.Priority,
-			t.Assignee,
-			t.Endorser,
-			t.Approver,
-			t.Status,
-			t.CreatedAt.Format("2006-01-02 15:04:05"),
-			t.UpdatedAt.Format("2006-01-02 15:04:05"),
-			t.CancelledBy,
-			"",
-		}
+		// 16 values → indices 0–15, matching headers above
+		cancelledAt := ""
 		if t.CancelledAt != nil {
-			row[17] = t.CancelledAt.Format("2006-01-02 15:04:05")
+			cancelledAt = t.CancelledAt.Format("2006-01-02 15:04:05")
+		}
+
+		row := []string{
+			t.TicketID,    // 0
+			t.Username,    // 1
+			t.Category,    // 2
+			t.Subject,     // 3
+			t.Institution, // 4
+			t.Tickettype,  // 5
+			t.Description, // 6
+			t.Priority,    // 7
+			t.Assignee,    // 8
+			t.Endorser,    // 9
+			t.Approver,    // 10
+			t.Status,      // 11
+			t.CreatedAt.Format("2006-01-02 15:04:05"), // 12
+			t.UpdatedAt.Format("2006-01-02 15:04:05"), // 13
+			t.CancelledBy, // 14
+			cancelledAt,   // 15
 		}
 		writer.Write(row)
 	}
