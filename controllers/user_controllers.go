@@ -596,7 +596,18 @@ func ResolveTicket(c *fiber.Ctx) error {
 	}
 
 	// ✅ Mark as resolved
-	if err := middleware.DBConn.Model(&ticket).Update("status", "resolved").Error; err != nil {
+	now := time.Now()
+
+	// compute SLA (minutes)
+	duration := now.Sub(ticket.CreatedAt)
+	resolutionMinutes := duration.Minutes()
+
+	// update DB
+	if err := middleware.DBConn.Model(&ticket).Updates(map[string]interface{}{
+		"status":             "resolved",
+		"resolved_at":        now,
+		"resolution_minutes": resolutionMinutes,
+	}).Error; err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(response.ResponseModel{
 			RetCode: "500",
 			Message: "Failed to resolve ticket",

@@ -16,13 +16,14 @@ type CreateTicket struct {
 	Approver    string `json:"approver"`
 	Status      string `json:"status" gorm:"default:'for endorsement'"`
 
-	CreatedAt   time.Time
-	UpdatedAt   time.Time
+	CreatedAt time.Time
+	UpdatedAt time.Time
 
 	CancelledBy string     `json:"cancelled_by"`
 	CancelledAt *time.Time `json:"cancelled_at"`
 
-	ResolvedAt  *time.Time `json:"resolved_at"` // ✅ add this
+	ResolvedAt        *time.Time `json:"resolved_at"`
+	ResolutionMinutes float64    `json:"resolution_minutes"`
 }
 
 // Table name
@@ -43,11 +44,11 @@ func (TicketAttachment) TableName() string {
 }
 
 type TicketRemark struct {
-    RemarkID  string    `gorm:"primaryKey"`
-    TicketID  string
-    UserID    string
-    Message   string
-    CreatedAt time.Time
+	RemarkID  string `gorm:"primaryKey"`
+	TicketID  string
+	UserID    string
+	Message   string
+	CreatedAt time.Time
 }
 
 func (TicketRemark) TableName() string {
