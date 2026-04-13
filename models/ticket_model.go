@@ -22,6 +22,7 @@ type CreateTicket struct {
 	CancelledBy string     `json:"cancelled_by"`
 	CancelledAt *time.Time `json:"cancelled_at"`
 
+	StartedAt *time.Time `json:"started_at"`
 	ResolvedAt        *time.Time `json:"resolved_at"`
 	ResolutionMinutes float64    `json:"resolution_minutes"`
 }

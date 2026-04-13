@@ -520,10 +520,13 @@ func GrabTicket(c *fiber.Ctx) error {
 		})
 	}
 
+	now := time.Now()
+
 	// ✅ Assign + update status
 	if err := middleware.DBConn.Model(&ticket).Updates(map[string]interface{}{
-		"assignee": user.Username,
-		"status":   "in progress",
+		"assignee":   user.Username,
+		"status":     "in progress",
+		"started_at": now,
 	}).Error; err != nil {
 
 		return c.Status(fiber.StatusInternalServerError).JSON(response.ResponseModel{
@@ -599,7 +602,15 @@ func ResolveTicket(c *fiber.Ctx) error {
 	now := time.Now()
 
 	// compute SLA (minutes)
-	duration := now.Sub(ticket.CreatedAt)
+	var duration time.Duration
+
+	if ticket.StartedAt != nil {
+		duration = now.Sub(*ticket.StartedAt)
+	} else {
+		// fallback (just in case)
+		duration = now.Sub(ticket.CreatedAt)
+	}
+
 	resolutionMinutes := duration.Minutes()
 
 	// update DB
