@@ -3,7 +3,7 @@ package models
 import "time"
 
 type CreateTicket struct {
-	TicketID    string `json:"ticket_id" gorm:"primaryKey"` // <-- change from uint to string
+	TicketID    string `json:"ticket_id" gorm:"primaryKey"`
 	Username    string `json:"username"`
 	Category    string `json:"category"`
 	Subject     string `json:"subject"`
@@ -15,10 +15,14 @@ type CreateTicket struct {
 	Endorser    string `json:"endorser"`
 	Approver    string `json:"approver"`
 	Status      string `json:"status" gorm:"default:'for endorsement'"`
+
 	CreatedAt   time.Time
 	UpdatedAt   time.Time
+
 	CancelledBy string     `json:"cancelled_by"`
 	CancelledAt *time.Time `json:"cancelled_at"`
+
+	ResolvedAt  *time.Time `json:"resolved_at"` // ✅ add this
 }
 
 // Table name
