@@ -105,31 +105,104 @@ func SendEndorserNotification(ticket models.CreateTicket, toEmail string) error 
 
 	auth := smtp.PlainAuth("", from, password, smtpHost)
 
-	subject := "🔔 New Ticket For Endorsement! 🔔"
+	subject := "🔔 New Ticket For Endorsement 🔔"
+
 	body := fmt.Sprintf(`
-Hello %s,
+<!DOCTYPE html>
+<html>
+<head>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background-color: #f4f6f8;
+      margin: 0;
+      padding: 20px;
+    }
+    .container {
+      max-width: 600px;
+      margin: auto;
+      background: #ffffff;
+      padding: 25px;
+      border-radius: 10px;
+      box-shadow: 0 4px 10px rgba(0,0,0,0.08);
+    }
+    .header {
+      text-align: center;
+      padding-bottom: 10px;
+      border-bottom: 1px solid #eee;
+    }
+    .header h2 {
+      color: #2c3e50;
+      margin: 0;
+    }
+    .ticket-box {
+      background: #f9fafb;
+      padding: 15px;
+      margin-top: 20px;
+      border-radius: 8px;
+      border-left: 5px solid #3498db;
+    }
+    .label {
+      font-weight: bold;
+      color: #555;
+    }
+    .value {
+      color: #222;
+    }
+    .footer {
+      margin-top: 25px;
+      font-size: 12px;
+      text-align: center;
+      color: #888;
+      border-top: 1px solid #eee;
+      padding-top: 15px;
+    }
+    .note {
+      font-size: 12px;
+      color: #999;
+      margin-top: 5px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    
+    <div class="header">
+      <h2>New Ticket For Endorsement</h2>
+      <p>You have received a ticket that requires your action.</p>
+    </div>
 
-You have a new ticket that requires your endorsement.
+    <div class="ticket-box">
+      <p><span class="label">Ticket ID:</span> %s</p>
+      <p><span class="label">Subject:</span> %s</p>
+      <p><span class="label">Category:</span> %s</p>
+      <p><span class="label">Priority:</span> %s</p>
+      <p><span class="label">Submitted By:</span> %s</p>
+    </div>
 
----------------------------------------
-Ticket ID  : %s
-Subject    : %s
-Category   : %s
-Priority   : %s
-Submitted by: %s
----------------------------------------
+    <div class="footer">
+      <p><b>Note:</b> This message is auto-generated.</p>
+      <p>Please do not reply to this email.</p>
+      <div class="note">If you have concerns, contact the system administrator.</div>
+    </div>
 
-Please log in to the system to review and endorse this ticket.
+  </div>
+</body>
+</html>
+`, ticket.TicketID, ticket.Subject, ticket.Category, ticket.Priority, ticket.Username)
 
-Thank you.
-`, ticket.Endorser, ticket.TicketID, ticket.Subject, ticket.Category, ticket.Priority, ticket.Username)
-
-	msg := []byte("Subject: " + subject + "\r\n\r\n" + body)
+	msg := []byte(
+		"Subject: " + subject + "\r\n" +
+			"MIME-Version: 1.0\r\n" +
+			"Content-Type: text/html; charset=\"UTF-8\"\r\n\r\n" +
+			body,
+	)
 
 	err := smtp.SendMail(smtpHost+":587", auth, from, []string{toEmail}, msg)
 	if err != nil {
 		log.Println("Failed to send endorser email:", err)
 	}
+
 	return err
 }
 
@@ -142,30 +215,103 @@ func SendApproverNotification(ticket models.CreateTicket, toEmail string) error 
 	auth := smtp.PlainAuth("", from, password, smtpHost)
 
 	subject := "🔔 Ticket Ready for Your Approval 🔔"
+
 	body := fmt.Sprintf(`
-Hello %s,
+<!DOCTYPE html>
+<html>
+<head>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background-color: #f4f6f8;
+      margin: 0;
+      padding: 20px;
+    }
+    .container {
+      max-width: 600px;
+      margin: auto;
+      background: #ffffff;
+      padding: 25px;
+      border-radius: 10px;
+      box-shadow: 0 4px 10px rgba(0,0,0,0.08);
+    }
+    .header {
+      text-align: center;
+      padding-bottom: 10px;
+      border-bottom: 1px solid #eee;
+    }
+    .header h2 {
+      color: #2c3e50;
+      margin: 0;
+    }
+    .ticket-box {
+      background: #f9fafb;
+      padding: 15px;
+      margin-top: 20px;
+      border-radius: 8px;
+      border-left: 5px solid #f39c12;
+    }
+    .label {
+      font-weight: bold;
+      color: #555;
+    }
+    .value {
+      color: #222;
+    }
+    .footer {
+      margin-top: 25px;
+      font-size: 12px;
+      text-align: center;
+      color: #888;
+      border-top: 1px solid #eee;
+      padding-top: 15px;
+    }
+    .note {
+      font-size: 12px;
+      color: #999;
+      margin-top: 5px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
 
-A ticket has been endorsed and now requires your approval.
+    <div class="header">
+      <h2>Ticket Ready for Approval</h2>
+      <p>A ticket has been endorsed and requires your action.</p>
+    </div>
 
----------------------------------------
-Ticket ID  : %s
-Subject    : %s
-Category   : %s
-Priority   : %s
-Endorsed by: %s
----------------------------------------
+    <div class="ticket-box">
+      <p><span class="label">Ticket ID:</span> %s</p>
+      <p><span class="label">Subject:</span> %s</p>
+      <p><span class="label">Category:</span> %s</p>
+      <p><span class="label">Priority:</span> %s</p>
+      <p><span class="label">Endorsed By:</span> %s</p>
+    </div>
 
-Please log in to the system to review and approve this ticket.
+    <div class="footer">
+      <p><b>Note:</b> This message is auto-generated.</p>
+      <p>Please do not reply to this email.</p>
+      <div class="note">For concerns, contact your system administrator.</div>
+    </div>
 
-Thank you.
-`, ticket.Approver, ticket.TicketID, ticket.Subject, ticket.Category, ticket.Priority, ticket.Endorser)
+  </div>
+</body>
+</html>
+`, ticket.TicketID, ticket.Subject, ticket.Category, ticket.Priority, ticket.Endorser)
 
-	msg := []byte("Subject: " + subject + "\r\n\r\n" + body)
+	msg := []byte(
+		"Subject: " + subject + "\r\n" +
+			"MIME-Version: 1.0\r\n" +
+			"Content-Type: text/html; charset=\"UTF-8\"\r\n\r\n" +
+			body,
+	)
 
 	err := smtp.SendMail(smtpHost+":587", auth, from, []string{toEmail}, msg)
 	if err != nil {
 		log.Println("Failed to send approver email:", err)
 	}
+
 	return err
 }
 
@@ -179,31 +325,104 @@ func SendResolverNotification(ticket models.CreateTicket, resolverUsername strin
 
 	auth := smtp.PlainAuth("", from, password, smtpHost)
 
-	subject := "🔔 Ticket Available for Resolution"
+	subject := "🔔 Ticket Available for Resolution 🔔"
+
 	body := fmt.Sprintf(`
-Hello %s,
+<!DOCTYPE html>
+<html>
+<head>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background-color: #f4f6f8;
+      margin: 0;
+      padding: 20px;
+    }
+    .container {
+      max-width: 600px;
+      margin: auto;
+      background: #ffffff;
+      padding: 25px;
+      border-radius: 10px;
+      box-shadow: 0 4px 10px rgba(0,0,0,0.08);
+    }
+    .header {
+      text-align: center;
+      padding-bottom: 10px;
+      border-bottom: 1px solid #eee;
+    }
+    .header h2 {
+      color: #2c3e50;
+      margin: 0;
+    }
+    .ticket-box {
+      background: #f9fafb;
+      padding: 15px;
+      margin-top: 20px;
+      border-radius: 8px;
+      border-left: 5px solid #27ae60;
+    }
+    .label {
+      font-weight: bold;
+      color: #555;
+    }
+    .footer {
+      margin-top: 25px;
+      font-size: 12px;
+      text-align: center;
+      color: #888;
+      border-top: 1px solid #eee;
+      padding-top: 15px;
+    }
+    .note {
+      font-size: 12px;
+      color: #999;
+      margin-top: 5px;
+    }
+  </style>
+</head>
+<body>
 
-A ticket has been approved and is now available for you to grab and resolve.
+  <div class="container">
 
----------------------------------------
-Ticket ID  : %s
-Subject    : %s
-Category   : %s
-Priority   : %s
-Approved by: %s
----------------------------------------
+    <div class="header">
+      <h2>Ticket Ready for Resolution</h2>
+      <p>A new ticket is now assigned for action.</p>
+    </div>
 
-Please log in to the system and grab this ticket to start working on it.
+    <div class="ticket-box">
+      <p><span class="label">Hello:</span> %s</p>
+      <p><span class="label">Ticket ID:</span> %s</p>
+      <p><span class="label">Subject:</span> %s</p>
+      <p><span class="label">Category:</span> %s</p>
+      <p><span class="label">Priority:</span> %s</p>
+      <p><span class="label">Approved By:</span> %s</p>
+    </div>
 
-Thank you.
+    <div class="footer">
+      <p><b>Note:</b> This message is auto-generated.</p>
+      <p>Please do not reply to this email.</p>
+      <div class="note">For concerns, contact your system administrator.</div>
+    </div>
+
+  </div>
+
+</body>
+</html>
 `, resolverUsername, ticket.TicketID, ticket.Subject, ticket.Category, ticket.Priority, ticket.Approver)
 
-	msg := []byte("Subject: " + subject + "\r\n\r\n" + body)
+	msg := []byte(
+		"Subject: " + subject + "\r\n" +
+			"MIME-Version: 1.0\r\n" +
+			"Content-Type: text/html; charset=\"UTF-8\r\n\r\n" +
+			body,
+	)
 
 	err := smtp.SendMail(smtpHost+":587", auth, from, []string{toEmail}, msg)
 	if err != nil {
 		log.Println("Failed to send resolver email:", err)
 	}
+
 	return err
 }
 
@@ -223,47 +442,110 @@ func SendTicketResolvedEmail(ticket models.CreateTicket, submitterUsername strin
 <html>
 <head>
   <style>
-    body { font-family: Arial, sans-serif; background-color: #f5f5f5; color: #333333; padding: 20px; }
-    .container { background-color: #ffffff; padding: 30px; border-radius: 10px; max-width: 500px; margin: auto; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
-    h2 { color: #155724; }
-    .badge { display: inline-block; background-color: #d4edda; color: #155724; font-size: 18px; font-weight: bold; padding: 10px 20px; border-radius: 8px; margin: 16px 0; }
-    .details { background-color: #f8f9fa; border-left: 4px solid #28a745; padding: 12px 16px; border-radius: 4px; margin: 16px 0; }
-    .details p { margin: 6px 0; font-size: 14px; }
-    .label { color: #666666; font-weight: bold; }
-    .footer { font-size: 13px; color: #888888; margin-top: 24px; }
+    body {
+      font-family: Arial, sans-serif;
+      background-color: #f4f6f8;
+      margin: 0;
+      padding: 20px;
+    }
+    .container {
+      max-width: 600px;
+      margin: auto;
+      background: #ffffff;
+      padding: 25px;
+      border-radius: 10px;
+      box-shadow: 0 4px 10px rgba(0,0,0,0.08);
+    }
+    .header {
+      text-align: center;
+      padding-bottom: 10px;
+      border-bottom: 1px solid #eee;
+    }
+    .header h2 {
+      color: #155724;
+      margin: 0;
+    }
+    .badge {
+      display: inline-block;
+      background-color: #d4edda;
+      color: #155724;
+      font-size: 16px;
+      font-weight: bold;
+      padding: 10px 18px;
+      border-radius: 8px;
+      margin: 20px 0;
+    }
+    .ticket-box {
+      background: #f9fafb;
+      padding: 15px;
+      margin-top: 20px;
+      border-radius: 8px;
+      border-left: 5px solid #28a745;
+    }
+    .label {
+      font-weight: bold;
+      color: #555;
+    }
+    .footer {
+      margin-top: 25px;
+      font-size: 12px;
+      text-align: center;
+      color: #888;
+      border-top: 1px solid #eee;
+      padding-top: 15px;
+    }
+    .note {
+      font-size: 12px;
+      color: #999;
+      margin-top: 5px;
+    }
   </style>
 </head>
 <body>
+
   <div class="container">
-    <h2>✅ Ticket Resolved</h2>
-    <p>Hello <strong>%s</strong>,</p>
-    <p>Great news! Your ticket has been successfully resolved.</p>
 
-    <div class="badge">Resolved ✓</div>
-
-    <div class="details">
-      <p><span class="label">Ticket ID  :</span> %s</p>
-      <p><span class="label">Subject    :</span> %s</p>
-      <p><span class="label">Category   :</span> %s</p>
-      <p><span class="label">Priority   :</span> %s</p>
-      <p><span class="label">Resolved by:</span> %s</p>
+    <div class="header">
+      <h2>Ticket Resolved Successfully</h2>
+      <p>Good news! Your issue has been completed.</p>
     </div>
 
-    <p>If you have any further concerns, please feel free to file a new ticket.</p>
-    <p class="footer">Thank you for using our support system.</p>
+    <div style="text-align:center;">
+      <div class="badge">Resolved ✓</div>
+    </div>
+
+    <div class="ticket-box">
+      <p><span class="label">Hello:</span> %s</p>
+      <p><span class="label">Ticket ID:</span> %s</p>
+      <p><span class="label">Subject:</span> %s</p>
+      <p><span class="label">Category:</span> %s</p>
+      <p><span class="label">Priority:</span> %s</p>
+      <p><span class="label">Resolved By:</span> %s</p>
+    </div>
+
+    <div class="footer">
+      <p><b>Note:</b> This message is auto-generated.</p>
+      <p>Please do not reply to this email.</p>
+      <div class="note">If you have further concerns, please create a new ticket.</div>
+    </div>
+
   </div>
+
 </body>
 </html>
 `, submitterUsername, ticket.TicketID, ticket.Subject, ticket.Category, ticket.Priority, ticket.Assignee)
 
-	msg := []byte("Subject: " + subject + "\r\n" +
-		"MIME-Version: 1.0\r\n" +
-		"Content-Type: text/html; charset=\"UTF-8\"\r\n\r\n" +
-		body)
+	msg := []byte(
+		"Subject: " + subject + "\r\n" +
+			"MIME-Version: 1.0\r\n" +
+			"Content-Type: text/html; charset=\"UTF-8\r\n\r\n" +
+			body,
+	)
 
 	err := smtp.SendMail(smtpHost+":587", auth, from, []string{toEmail}, msg)
 	if err != nil {
-		log.Println("Failed to send resolved email to submitter:", err)
+		log.Println("Failed to send resolved email:", err)
 	}
+
 	return err
 }
