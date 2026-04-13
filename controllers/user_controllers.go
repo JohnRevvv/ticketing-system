@@ -542,6 +542,84 @@ func GrabTicket(c *fiber.Ctx) error {
 	})
 }
 
+func UnGrabTicket(c *fiber.Ctx) error {
+	ticketID := c.Params("id")
+
+	// Get user from JWT
+	userID, err := middleware.GetUserIDFromJWT(c)
+	if err != nil {
+		return c.Status(fiber.StatusUnauthorized).JSON(response.ResponseModel{
+			RetCode: "401",
+			Message: "Unauthorized",
+		})
+	}
+
+	// Get user info
+	var user models.UserAccount
+	if err := middleware.DBConn.First(&user, userID).Error; err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(response.ResponseModel{
+			RetCode: "500",
+			Message: "Failed to fetch user",
+		})
+	}
+
+	// Role check
+	if user.Role != "resolver" {
+		return c.Status(fiber.StatusForbidden).JSON(response.ResponseModel{
+			RetCode: "403",
+			Message: "Only resolver can ungrab tickets",
+		})
+	}
+
+	// Get ticket
+	var ticket models.CreateTicket
+	if err := middleware.DBConn.Where("ticket_id = ?", ticketID).First(&ticket).Error; err != nil {
+		return c.Status(fiber.StatusNotFound).JSON(response.ResponseModel{
+			RetCode: "404",
+			Message: "Ticket not found",
+		})
+	}
+
+	// Must be assigned to someone
+	if ticket.Assignee == "" {
+		return c.Status(fiber.StatusBadRequest).JSON(response.ResponseModel{
+			RetCode: "400",
+			Message: "Ticket is not currently assigned",
+		})
+	}
+
+	// Optional: only allow the same resolver to ungrab it
+	if ticket.Assignee != user.Username {
+		return c.Status(fiber.StatusForbidden).JSON(response.ResponseModel{
+			RetCode: "403",
+			Message: "You can only ungrab tickets assigned to you",
+		})
+	}
+
+	// Reset ticket assignment
+	updates := map[string]interface{}{
+		"assignee":    "",
+		"status":      "for assignment",
+		"started_at":  nil,
+	}
+
+	if err := middleware.DBConn.Model(&ticket).Updates(updates).Error; err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(response.ResponseModel{
+			RetCode: "500",
+			Message: "Failed to ungrab ticket",
+		})
+	}
+
+	// Refresh ticket data
+	middleware.DBConn.Where("ticket_id = ?", ticketID).First(&ticket)
+
+	return c.Status(fiber.StatusOK).JSON(response.ResponseModel{
+		RetCode: "200",
+		Message: "Ticket ungrabbed successfully",
+		Data:    ticket,
+	})
+}
+
 // ── Replace ONLY the ResolveTicket function in your user controller ──────────
 
 func ResolveTicket(c *fiber.Ctx) error {

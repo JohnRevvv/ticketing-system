@@ -507,7 +507,7 @@ func SendTicketResolvedEmail(ticket models.CreateTicket, submitterUsername strin
 
     <div class="header">
       <h2>Ticket Resolved Successfully</h2>
-      <p>Good news! Your issue has been completed.</p>
+      <p>Good news! Your ticket has been completed.</p>
     </div>
 
     <div style="text-align:center;">
@@ -526,7 +526,7 @@ func SendTicketResolvedEmail(ticket models.CreateTicket, submitterUsername strin
     <div class="footer">
       <p><b>Note:</b> This message is auto-generated.</p>
       <p>Please do not reply to this email.</p>
-      <div class="note">If you have further concerns, please create a new ticket.</div>
+      <div class="note">If you have further concerns, please contact the resolver.</div>
     </div>
 
   </div>
