@@ -1,6 +1,7 @@
 package controllers
 
 import (
+	"fmt"
 	"log"
 	"ticketing-be-dev/middleware"
 	"ticketing-be-dev/models"
@@ -689,19 +690,26 @@ func ResolveTicket(c *fiber.Ctx) error {
 		duration = now.Sub(ticket.CreatedAt)
 	}
 
-	resolutionMinutes := duration.Minutes()
+	resolutionStr := humanDuration(duration)
 
-	// update DB
+	// update DB (optional: add "resolution_str": resolutionStr,)
 	if err := middleware.DBConn.Model(&ticket).Updates(map[string]interface{}{
 		"status":             "resolved",
 		"resolved_at":        now,
-		"resolution_minutes": resolutionMinutes,
+		"resolution_minutes": duration.Minutes(),
+		// "resolution_str":   resolutionStr, // if you want to store it
 	}).Error; err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(response.ResponseModel{
-			RetCode: "500",
-			Message: "Failed to resolve ticket",
-		})
+		// handle error as before
 	}
+	// response, include formatted string
+	return c.Status(fiber.StatusOK).JSON(response.ResponseModel{
+		RetCode: "200",
+		Message: "Ticket resolved successfully",
+		Data: fiber.Map{
+			"ticket":     ticket,
+			"resolution": resolutionStr, // <-- This is the readable format
+		},
+	})
 
 	// ── Notify the person who filed the ticket ────────────────────────────────
 	// ticket.Username holds the submitter's username — look up their email
@@ -726,4 +734,27 @@ func ResolveTicket(c *fiber.Ctx) error {
 		Message: "Ticket resolved successfully",
 		Data:    ticket,
 	})
+}
+
+func humanDuration(duration time.Duration) string {
+	seconds := int(duration.Seconds())
+	days := seconds / 86400
+	seconds %= 86400
+	hours := seconds / 3600
+	seconds %= 3600
+	minutes := seconds / 60
+	seconds %= 60
+
+	result := ""
+	if days > 0 {
+		result += fmt.Sprintf("%dd:", days)
+	}
+	if days > 0 || hours > 0 {
+		result += fmt.Sprintf("%dh:", hours)
+	}
+	if days > 0 || hours > 0 || minutes > 0 {
+		result += fmt.Sprintf("%dm:", minutes)
+	}
+	result += fmt.Sprintf("%ds", seconds)
+	return result
 }

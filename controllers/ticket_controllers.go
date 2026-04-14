@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"log"
 	"os"
-	"path/filepath"
 	"strconv"
 	"strings"
 	"sync"
@@ -115,7 +114,7 @@ func CreateTicket(c *fiber.Ctx) error {
 				})
 			}
 
-			cleanFileName := filepath.Base(file.Filename)
+			cleanFileName := sanitizeFileName(file.Filename)
 			savedFileName := fmt.Sprintf("%s_%d_%s", ticket.TicketID, time.Now().UnixNano(), cleanFileName)
 			filePath := fmt.Sprintf("%s/%s", baseUploadPath, savedFileName)
 
@@ -451,6 +450,24 @@ func ExportTicketsCSV(c *fiber.Ctx) error {
 	return nil
 }
 
+func sanitizeFileName(name string) string {
+	// Remove weird unicode spaces and normalize
+	name = strings.ReplaceAll(name, " ", " ")      // narrow no-break space
+	name = strings.ReplaceAll(name, "\u00A0", " ") // non-breaking space
+
+	// Replace spaces with underscore (optional but safer)
+	name = strings.ReplaceAll(name, " ", "_")
+
+	// Remove any problematic characters
+	name = strings.Map(func(r rune) rune {
+		if r > 127 {
+			return -1 // remove non-ASCII
+		}
+		return r
+	}, name)
+
+	return name
+}
 
 // ============================================
 // TICKET REMARKS FUNCTION!!
@@ -459,6 +476,7 @@ func CreateTicketRemark(c *fiber.Ctx) error {
 	var input struct {
 		TicketID string `json:"ticket_id"`
 		UserID   string `json:"user_id"`
+		Username string `json:"username"`
 		Message  string `json:"message"`
 	}
 
@@ -471,10 +489,10 @@ func CreateTicketRemark(c *fiber.Ctx) error {
 	}
 
 	// Validate
-	if input.TicketID == "" || input.UserID == "" || input.Message == "" {
+	if input.TicketID == "" || input.UserID == "" || input.Username == "" || input.Message == "" {
 		return c.Status(fiber.StatusBadRequest).JSON(response.ResponseModel{
 			RetCode: "400",
-			Message: "ticket_id, user_id, and message are required",
+			Message: "ticket_id, user_id, username, and message are required",
 		})
 	}
 
@@ -482,6 +500,7 @@ func CreateTicketRemark(c *fiber.Ctx) error {
 		RemarkID:  uuid.New().String(),
 		TicketID:  input.TicketID,
 		UserID:    input.UserID,
+		Username:  input.Username,
 		Message:   input.Message,
 		CreatedAt: time.Now(),
 	}
