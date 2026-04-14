@@ -588,7 +588,7 @@ func UnGrabTicket(c *fiber.Ctx) error {
 		})
 	}
 
-	// Optional: only allow the same resolver to ungrab it
+	// Only allow the same resolver to ungrab it
 	if ticket.Assignee != user.Username {
 		return c.Status(fiber.StatusForbidden).JSON(response.ResponseModel{
 			RetCode: "403",
@@ -596,14 +596,14 @@ func UnGrabTicket(c *fiber.Ctx) error {
 		})
 	}
 
-	// Reset ticket assignment
-	updates := map[string]interface{}{
-		"assignee":    "",
-		"status":      "for assignment",
-		"started_at":  nil,
-	}
-
-	if err := middleware.DBConn.Model(&ticket).Updates(updates).Error; err != nil {
+	// ✅ Select forces GORM to update empty string and nil fields
+	if err := middleware.DBConn.Model(&ticket).
+		Select("assignee", "status", "started_at").
+		Updates(map[string]interface{}{
+			"assignee":   "",
+			"status":     "for assignment",
+			"started_at": nil,
+		}).Error; err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(response.ResponseModel{
 			RetCode: "500",
 			Message: "Failed to ungrab ticket",

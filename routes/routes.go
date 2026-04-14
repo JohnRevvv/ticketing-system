@@ -1,6 +1,9 @@
 package routes
 
 import (
+	"net/url"
+	"os"
+	"path/filepath"
 	"ticketing-be-dev/controllers"
 	"ticketing-be-dev/middleware"
 
@@ -11,9 +14,25 @@ func AppRoutes(app *fiber.App) {
 	api := app.Group("/api")
 
 	// ── Static file serving ───────────────────────────────────────────────────
-	// Files are saved to ./upload/attachments/ on disk
-	// Served at GET /uploads/attachments/filename
-	app.Static("/uploads", "./upload")
+	// Custom handler: URL-decodes the path before serving,
+	// fixing filenames with spaces or special characters.
+	app.Get("/upload/*", func(c *fiber.Ctx) error {
+		rawPath := c.Params("*")
+
+		// Decode %20, %C3%A2%C2%80%C2%AF, etc.
+		decoded, err := url.PathUnescape(rawPath)
+		if err != nil {
+			decoded = rawPath
+		}
+
+		filePath := filepath.Join("./upload", decoded)
+
+		if _, err := os.Stat(filePath); os.IsNotExist(err) {
+			return c.Status(fiber.StatusNotFound).SendString("File not found: " + decoded)
+		}
+
+		return c.SendFile(filePath)
+	})
 
 	// ==============================
 	// Public routes (no token needed)
@@ -44,6 +63,7 @@ func AppRoutes(app *fiber.App) {
 	userRoutes.Put("/ticket/endorse/:id", controllers.EndorseTicket)
 	userRoutes.Put("/ticket/approve/:id", controllers.ApproveTicket)
 	userRoutes.Put("/ticket/grab/:id", controllers.GrabTicket)
+	userRoutes.Put("/ticket/ungrab/:id", controllers.UnGrabTicket)
 	userRoutes.Put("/ticket/resolve/:id", controllers.ResolveTicket)
 	userRoutes.Put("/ticket/cancel/:id", controllers.CancelTicket)
 
@@ -55,4 +75,8 @@ func AppRoutes(app *fiber.App) {
 
 	// ── Attachments ───────────────────────────────────────────────────────────
 	userRoutes.Get("/attachments/:id", controllers.ViewAttachment)
+
+	// ── Remarks ───────────────────────────────────────────────────────────────
+	userRoutes.Post("/ticket/remark", controllers.CreateTicketRemark)
+	userRoutes.Get("/ticket/:ticket_id/remarks", controllers.GetRemarksByTicket)
 }
