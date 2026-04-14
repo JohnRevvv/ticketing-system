@@ -16,7 +16,7 @@ func AppRoutes(app *fiber.App) {
 	// ── Static file serving ───────────────────────────────────────────────────
 	// Custom handler: URL-decodes the path before serving,
 	// fixing filenames with spaces or special characters.
-	app.Get("/upload/*", func(c *fiber.Ctx) error {
+	app.Get("/uploads/*", func(c *fiber.Ctx) error {
 		rawPath := c.Params("*")
 
 		// Decode %20, %C3%A2%C2%80%C2%AF, etc.
@@ -25,7 +25,7 @@ func AppRoutes(app *fiber.App) {
 			decoded = rawPath
 		}
 
-		filePath := filepath.Join("./upload", decoded)
+		filePath := filepath.Join("./uploads", decoded)
 
 		if _, err := os.Stat(filePath); os.IsNotExist(err) {
 			return c.Status(fiber.StatusNotFound).SendString("File not found: " + decoded)
