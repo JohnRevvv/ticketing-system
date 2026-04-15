@@ -25,6 +25,8 @@ type CreateTicket struct {
 	StartedAt         *time.Time `json:"started_at"`
 	ResolvedAt        *time.Time `json:"resolved_at"`
 	ResolutionMinutes float64    `json:"resolution_minutes"`
+
+	OnHold bool `json:"onhold" gorm:"default:false"`
 }
 
 // Table name

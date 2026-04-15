@@ -561,3 +561,79 @@ func GetRemarksByTicket(c *fiber.Ctx) error {
 		Data:    responseData,
 	})
 }
+
+func HoldTicket(c *fiber.Ctx) error {
+	ticketID := c.Params("id")
+
+	var ticket models.CreateTicket
+
+	// Find ticket
+	if err := middleware.DBConn.
+		Where("ticket_id = ?", ticketID).
+		First(&ticket).Error; err != nil {
+		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
+			"message": "Ticket not found",
+		})
+	}
+
+	// Prevent double hold
+	if ticket.OnHold {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"message": "Ticket is already on hold",
+		})
+	}
+
+	// Update status
+	err := middleware.DBConn.Model(&ticket).Updates(map[string]interface{}{
+		"on_hold": true,
+		"status":  "on hold",
+	}).Error
+
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"message": "Failed to hold ticket",
+		})
+	}
+
+	return c.JSON(fiber.Map{
+		"message": "Ticket placed on hold",
+	})
+}
+
+func UnholdTicket(c *fiber.Ctx) error {
+	ticketID := c.Params("id")
+
+	var ticket models.CreateTicket
+
+	// Find ticket
+	if err := middleware.DBConn.
+		Where("ticket_id = ?", ticketID).
+		First(&ticket).Error; err != nil {
+		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
+			"message": "Ticket not found",
+		})
+	}
+
+	// Prevent unholding if not on hold
+	if !ticket.OnHold {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"message": "Ticket is not on hold",
+		})
+	}
+
+	// Update status
+	err := middleware.DBConn.Model(&ticket).Updates(map[string]interface{}{
+		"on_hold": false,
+		"status":  "in progress",
+	}).Error
+
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"message": "Failed to resume ticket",
+		})
+	}
+
+	return c.JSON(fiber.Map{
+		"message": "Ticket resumed successfully",
+	})
+}
