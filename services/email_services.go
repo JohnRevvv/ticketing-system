@@ -207,14 +207,14 @@ func SendEndorserNotification(ticket models.CreateTicket, toEmail string) error 
 }
 
 // SendApproverNotification — called after EndorseTicket succeeds
-func SendApproverNotification(ticket models.CreateTicket, toEmail string) error {
+func SendApproverNotification(ticket models.CreateTicket, approverUsername string, toEmail string) error {
 	from := os.Getenv("EMAIL_ADDRESS")
 	password := os.Getenv("EMAIL_PASSWORD")
 	smtpHost := os.Getenv("SMTP_HOST")
 
 	auth := smtp.PlainAuth("", from, password, smtpHost)
 
-	subject := "🔔 Ticket Ready for Your Approval 🔔"
+	subject := "🔔 Ticket Ready for Approval 🔔"
 
 	body := fmt.Sprintf(`
 <!DOCTYPE html>
@@ -255,9 +255,6 @@ func SendApproverNotification(ticket models.CreateTicket, toEmail string) error 
       font-weight: bold;
       color: #555;
     }
-    .value {
-      color: #222;
-    }
     .footer {
       margin-top: 25px;
       font-size: 12px;
@@ -274,6 +271,7 @@ func SendApproverNotification(ticket models.CreateTicket, toEmail string) error 
   </style>
 </head>
 <body>
+
   <div class="container">
 
     <div class="header">
@@ -282,6 +280,7 @@ func SendApproverNotification(ticket models.CreateTicket, toEmail string) error 
     </div>
 
     <div class="ticket-box">
+      <p><span class="label">Hello:</span> %s</p>
       <p><span class="label">Ticket ID:</span> %s</p>
       <p><span class="label">Subject:</span> %s</p>
       <p><span class="label">Category:</span> %s</p>
@@ -296,14 +295,15 @@ func SendApproverNotification(ticket models.CreateTicket, toEmail string) error 
     </div>
 
   </div>
+
 </body>
 </html>
-`, ticket.TicketID, ticket.Subject, ticket.Category, ticket.Priority, ticket.Endorser)
+`, approverUsername, ticket.TicketID, ticket.Subject, ticket.Category, ticket.Priority, ticket.Endorser)
 
 	msg := []byte(
 		"Subject: " + subject + "\r\n" +
 			"MIME-Version: 1.0\r\n" +
-			"Content-Type: text/html; charset=\"UTF-8\"\r\n\r\n" +
+			"Content-Type: text/html; charset=\"UTF-8\"\r\n\r\n" + // ✅ FIXED
 			body,
 	)
 

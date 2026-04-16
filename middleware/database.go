@@ -43,7 +43,9 @@ func ConnectDB() bool {
 		&models.CreateTicket{},
 		&models.PasswordResetToken{},
 		&models.TicketAttachment{},
-		&models.TicketRemark{});
+		&models.TicketRemark{},
+		&models.Category{},
+		&models.SubCategory{});
 		err != nil {
 		log.Println("❌ Auto-migration failed:", err)
 		return true

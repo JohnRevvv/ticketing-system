@@ -236,18 +236,19 @@ func EndorseTicket(c *fiber.Ctx) error {
 	}
 
 	// Get approver email
-	var approver models.UserAccount
-	if err := middleware.DBConn.
-		Where("username = ?", ticket.Approver).
-		First(&approver).Error; err != nil {
-
-		log.Println("Approver not found:", err)
-		// You can choose to continue without failing the request
+	var approver []models.UserAccount
+	if err := middleware.DBConn.Where("role = ?", "approver").Find(&approver).Error; err != nil {
+		log.Println("Failed to fetch approver:", err)
 	}
 
-	// Send email asynchronously
-	if approver.Email != "" {
-		go services.SendApproverNotification(ticket, approver.Email)
+	for _, a := range approver {
+		if a.Email != "" {
+			go func(username, email string) {
+				if err := services.SendApproverNotification(ticket, username, email); err != nil {
+					log.Println("Failed to send approver email to", email, ":", err)
+				}
+			}(a.Username, a.Email)
+		}
 	}
 
 	return c.Status(fiber.StatusOK).JSON(response.ResponseModel{
@@ -256,8 +257,6 @@ func EndorseTicket(c *fiber.Ctx) error {
 		Data:    ticket,
 	})
 }
-
-// ── REPLACE your ApproveTicket function with this ──────────────────────────
 
 // ── Replace ONLY the ApproveTicket function in your user controller ──────────
 // The rest of the file stays exactly the same.
