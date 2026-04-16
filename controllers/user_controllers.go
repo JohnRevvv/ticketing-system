@@ -685,8 +685,15 @@ func ResolveTicket(c *fiber.Ctx) error {
 
 	if ticket.StartedAt != nil {
 		duration = now.Sub(*ticket.StartedAt)
+
+		// subtract total hold time
+		duration -= time.Duration(ticket.TotalHoldSeconds) * time.Second
+
+		// if currently on hold, subtract ongoing hold too
+		if ticket.HoldStartedAt != nil {
+			duration -= now.Sub(*ticket.HoldStartedAt)
+		}
 	} else {
-		// fallback (just in case)
 		duration = now.Sub(ticket.CreatedAt)
 	}
 

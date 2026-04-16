@@ -67,7 +67,7 @@ func AppRoutes(app *fiber.App) {
 	userRoutes.Put("/ticket/resolve/:id", controllers.ResolveTicket)
 	userRoutes.Put("/ticket/cancel/:id", controllers.CancelTicket)
 	userRoutes.Patch("/ticket/hold/:id", controllers.HoldTicket)
-	userRoutes.Patch("/ticket/unhold/:id", controllers.UnholdTicket)
+	userRoutes.Patch("/ticket/unhold/:id", controllers.ResumeTicket)
 
 	// ── Users ─────────────────────────────────────────────────────────────────
 	userRoutes.Get("/list/all/users", controllers.GetAllUsers)
