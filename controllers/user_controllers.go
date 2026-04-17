@@ -765,8 +765,8 @@ func humanDuration(duration time.Duration) string {
 	return result
 }
 
-// CATEGORY
-func AddCategory(c *fiber.Ctx) error {
+// CATEGORY function
+func AddCategoryWithSubcategories(c *fiber.Ctx) error {
 	// Get user from JWT
 	userID, err := middleware.GetUserIDFromJWT(c)
 	if err != nil {
@@ -785,17 +785,18 @@ func AddCategory(c *fiber.Ctx) error {
 		})
 	}
 
-	// Role check (admin only)
+	// Admin only
 	if user.Role != "admin" {
 		return c.Status(fiber.StatusForbidden).JSON(response.ResponseModel{
 			RetCode: "403",
-			Message: "Only admin can add categories",
+			Message: "Only admin can add category",
 		})
 	}
 
-	// Parse request body
+	// Request body
 	var input struct {
-		Name        string `json:"name"`
+		Name          string   `json:"name"`
+		SubCategories []string `json:"subcategories"`
 	}
 
 	if err := c.BodyParser(&input); err != nil {
@@ -812,101 +813,51 @@ func AddCategory(c *fiber.Ctx) error {
 		})
 	}
 
+	// Start transaction (IMPORTANT)
+	tx := middleware.DBConn.Begin()
+
 	// Create category
 	category := models.Category{
-		Name:        input.Name,
-		CreatedBy:   user.Username,
+		Name:      input.Name,
+		CreatedBy: user.Username,
 	}
 
-	if err := middleware.DBConn.Create(&category).Error; err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(response.ResponseModel{
+	if err := tx.Create(&category).Error; err != nil {
+		tx.Rollback()
+		return c.Status(500).JSON(response.ResponseModel{
 			RetCode: "500",
 			Message: "Failed to create category",
 		})
 	}
 
+	// Create subcategories
+	for _, sub := range input.SubCategories {
+		if sub == "" {
+			continue
+		}
+
+		subCategory := models.SubCategory{
+			CategoryID: category.CategoryID,
+			Name:       sub,
+			CreatedBy:  user.Username,
+		}
+
+		if err := tx.Create(&subCategory).Error; err != nil {
+			tx.Rollback()
+			return c.Status(500).JSON(response.ResponseModel{
+				RetCode: "500",
+				Message: "Failed to create subcategory",
+			})
+		}
+	}
+
+	// Commit transaction
+	tx.Commit()
+
 	return c.Status(fiber.StatusOK).JSON(response.ResponseModel{
 		RetCode: "200",
-		Message: "Category added successfully",
+		Message: "Category and subcategories created successfully",
 		Data:    category,
-	})
-}
-
-func AddSubCategory(c *fiber.Ctx) error {
-	// Get user from JWT
-	userID, err := middleware.GetUserIDFromJWT(c)
-	if err != nil {
-		return c.Status(fiber.StatusUnauthorized).JSON(response.ResponseModel{
-			RetCode: "401",
-			Message: "Unauthorized",
-		})
-	}
-
-	// Get user info
-	var user models.UserAccount
-	if err := middleware.DBConn.First(&user, userID).Error; err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(response.ResponseModel{
-			RetCode: "500",
-			Message: "Failed to fetch user",
-		})
-	}
-
-	// Role check (admin only)
-	if user.Role != "admin" {
-		return c.Status(fiber.StatusForbidden).JSON(response.ResponseModel{
-			RetCode: "403",
-			Message: "Only admin can add subcategories",
-		})
-	}
-
-	// Parse request body
-	var input struct {
-		CategoryID  uint   `json:"category_id"`
-		Name        string `json:"name"`
-	}
-
-	if err := c.BodyParser(&input); err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(response.ResponseModel{
-			RetCode: "400",
-			Message: "Invalid request body",
-		})
-	}
-
-	// Validate fields
-	if input.CategoryID == 0 || input.Name == "" {
-		return c.Status(fiber.StatusBadRequest).JSON(response.ResponseModel{
-			RetCode: "400",
-			Message: "Category ID and name are required",
-		})
-	}
-
-	// Check if category exists
-	var category models.Category
-	if err := middleware.DBConn.First(&category, input.CategoryID).Error; err != nil {
-		return c.Status(fiber.StatusNotFound).JSON(response.ResponseModel{
-			RetCode: "404",
-			Message: "Category not found",
-		})
-	}
-
-	// Create subcategory
-	subCategory := models.SubCategory{
-		CategoryID:  input.CategoryID,
-		Name:        input.Name,
-		CreatedBy:   user.Username,
-	}
-
-	if err := middleware.DBConn.Create(&subCategory).Error; err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(response.ResponseModel{
-			RetCode: "500",
-			Message: "Failed to create subcategory",
-		})
-	}
-
-	return c.Status(fiber.StatusOK).JSON(response.ResponseModel{
-		RetCode: "200",
-		Message: "Subcategory added successfully",
-		Data:    subCategory,
 	})
 }
 
