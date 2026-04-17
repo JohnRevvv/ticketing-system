@@ -901,3 +901,188 @@ func AddCategoryWithSubcategories(c *fiber.Ctx) error {
 		Data:    result,
 	})
 }
+
+func UpdateCategory(c *fiber.Ctx) error {
+	categoryID := c.Params("id")
+
+	userID, err := middleware.GetUserIDFromJWT(c)
+	if err != nil {
+		return c.Status(401).JSON(response.ResponseModel{
+			RetCode: "401",
+			Message: "Unauthorized",
+		})
+	}
+
+	var user models.UserAccount
+	if err := middleware.DBConn.First(&user, userID).Error; err != nil {
+		return c.Status(500).JSON(response.ResponseModel{
+			RetCode: "500",
+			Message: "User not found",
+		})
+	}
+
+	if user.Role != "admin" {
+		return c.Status(403).JSON(response.ResponseModel{
+			RetCode: "403",
+			Message: "Only admin can update category",
+		})
+	}
+
+	// Input
+	var input struct {
+		Name          string   `json:"name"`
+		SubCategories []struct {
+			ID   uint   `json:"id"`
+			Name string `json:"name"`
+		} `json:"subcategories"`
+	}
+
+	if err := c.BodyParser(&input); err != nil {
+		return c.Status(400).JSON(response.ResponseModel{
+			RetCode: "400",
+			Message: "Invalid request body",
+		})
+	}
+
+	tx := middleware.DBConn.Begin()
+
+	// Update category
+	if input.Name != "" {
+		if err := tx.Model(&models.Category{}).
+			Where("category_id = ?", categoryID).
+			Update("name", input.Name).Error; err != nil {
+			tx.Rollback()
+			return c.Status(500).JSON(response.ResponseModel{
+				RetCode: "500",
+				Message: "Failed to update category",
+			})
+		}
+	}
+
+	// Update subcategories
+	for _, sub := range input.SubCategories {
+		if sub.Name == "" {
+			continue
+		}
+
+		if err := tx.Model(&models.SubCategory{}).
+			Where("subcategory_id = ? AND category_id = ?", sub.ID, categoryID).
+			Update("name", sub.Name).Error; err != nil {
+			tx.Rollback()
+			return c.Status(500).JSON(response.ResponseModel{
+				RetCode: "500",
+				Message: "Failed to update subcategory",
+			})
+		}
+	}
+
+	if err := tx.Commit().Error; err != nil {
+		tx.Rollback()
+		return c.Status(500).JSON(response.ResponseModel{
+			RetCode: "500",
+			Message: "Commit failed",
+		})
+	}
+
+	return c.Status(200).JSON(response.ResponseModel{
+		RetCode: "200",
+		Message: "Category updated successfully",
+	})
+}
+
+func DeleteCategory(c *fiber.Ctx) error {
+	categoryID := c.Params("id")
+
+	userID, err := middleware.GetUserIDFromJWT(c)
+	if err != nil {
+		return c.Status(401).JSON(response.ResponseModel{
+			RetCode: "401",
+			Message: "Unauthorized",
+		})
+	}
+
+	var user models.UserAccount
+	middleware.DBConn.First(&user, userID)
+
+	if user.Role != "admin" {
+		return c.Status(403).JSON(response.ResponseModel{
+			RetCode: "403",
+			Message: "Only admin can delete category",
+		})
+	}
+
+	tx := middleware.DBConn.Begin()
+
+	// Delete category (subcategories auto deleted via CASCADE)
+	if err := tx.Delete(&models.Category{}, categoryID).Error; err != nil {
+		tx.Rollback()
+		return c.Status(500).JSON(response.ResponseModel{
+			RetCode: "500",
+			Message: "Failed to delete category",
+		})
+	}
+
+	if err := tx.Commit().Error; err != nil {
+		tx.Rollback()
+		return c.Status(500).JSON(response.ResponseModel{
+			RetCode: "500",
+			Message: "Commit failed",
+		})
+	}
+
+	return c.Status(200).JSON(response.ResponseModel{
+		RetCode: "200",
+		Message: "Category and its subcategories deleted successfully",
+	})
+}
+
+func DeleteSubCategories(c *fiber.Ctx) error {
+	userID, err := middleware.GetUserIDFromJWT(c)
+	if err != nil {
+		return c.Status(401).JSON(response.ResponseModel{
+			RetCode: "401",
+			Message: "Unauthorized",
+		})
+	}
+
+	var user models.UserAccount
+	middleware.DBConn.First(&user, userID)
+
+	if user.Role != "admin" {
+		return c.Status(403).JSON(response.ResponseModel{
+			RetCode: "403",
+			Message: "Only admin can delete subcategories",
+		})
+	}
+
+	var input struct {
+		SubCategoryIDs []uint `json:"subcategory_ids"`
+	}
+
+	if err := c.BodyParser(&input); err != nil {
+		return c.Status(400).JSON(response.ResponseModel{
+			RetCode: "400",
+			Message: "Invalid request body",
+		})
+	}
+
+	if len(input.SubCategoryIDs) == 0 {
+		return c.Status(400).JSON(response.ResponseModel{
+			RetCode: "400",
+			Message: "No subcategories selected",
+		})
+	}
+
+	if err := middleware.DBConn.
+		Delete(&models.SubCategory{}, input.SubCategoryIDs).Error; err != nil {
+		return c.Status(500).JSON(response.ResponseModel{
+			RetCode: "500",
+			Message: "Failed to delete subcategories",
+		})
+	}
+
+	return c.Status(200).JSON(response.ResponseModel{
+		RetCode: "200",
+		Message: "Subcategories deleted successfully",
+	})
+}

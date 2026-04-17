@@ -86,4 +86,7 @@ func AppRoutes(app *fiber.App) {
 
 	// ── Add Categories and Subcategories ───────────────────────────────────────────────────────────────
 	userRoutes.Post("/add-category/with-subcategory", controllers.AddCategoryWithSubcategories)
+	userRoutes.Put("/update-categories/:id", controllers.UpdateCategory)
+	userRoutes.Delete("/delete-category/:id", controllers.DeleteCategory)
+	userRoutes.Delete("/delete-subcategory/:id", controllers.DeleteSubCategories)
 }
