@@ -81,4 +81,12 @@ func AppRoutes(app *fiber.App) {
 	// ── Remarks ───────────────────────────────────────────────────────────────
 	userRoutes.Post("/ticket/remark", controllers.CreateTicketRemark)
 	userRoutes.Get("/ticket/:ticket_id/remarks", controllers.GetRemarksByTicket)
+
+
+
+	// ── Add Categories and Subcategories ───────────────────────────────────────────────────────────────
+	categoryRoutes := app.Group("/api/categories")
+
+	categoryRoutes.Post("/add", controllers.AddCategory)
+	categoryRoutes.Post("/subcategory/add", controllers.AddSubCategory)
 }
