@@ -24,27 +24,21 @@ func (UserAccount) TableName() string {
 type Category struct {
 	CategoryID   uint      `gorm:"primaryKey" json:"category_id"`
 	Name         string    `gorm:"unique;not null" json:"name"`
-	CreatedBy    string    `json:"created_by"` // admin username
+	CreatedBy    string    `json:"created_by"`
 	CreatedAt    time.Time `json:"created_at"`
-
-	// Relationship
-	SubCategories []SubCategory `gorm:"foreignKey:CategoryID" json:"sub_categories"`
 }
 
 func (Category) TableName() string {
 	return "categories"
 }
 type SubCategory struct {
-	SubCategoryID uint      `gorm:"primaryKey" json:"sub_category_id"`
-	CategoryID    uint      `gorm:"not null" json:"category_id"` // FK to Category
+	SubCategoryID uint      `gorm:"primaryKey" json:"subcategory_id"`
+	CategoryID    uint      `gorm:"not null" json:"category_id"`
 	Name          string    `gorm:"not null" json:"name"`
-	CreatedBy     string    `json:"created_by"` // admin username
+	CreatedBy     string    `json:"created_by"`
 	CreatedAt     time.Time `json:"created_at"`
-
-	// Optional: preload parent
-	Category Category `gorm:"foreignKey:CategoryID" json:"category"`
 }
 
 func (SubCategory) TableName() string {
-	return "sub_categories"
+	return "subcategories"
 }

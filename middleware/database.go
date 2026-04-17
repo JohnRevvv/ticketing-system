@@ -51,6 +51,7 @@ func ConnectDB() bool {
 		return true
 	}
 
+
 	log.Println("✅ Database connected and migrated")
 	return false
 }
