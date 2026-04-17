@@ -20,17 +20,19 @@ func (UserAccount) TableName() string {
 	return "useraccount"
 }
 
-
 type Category struct {
-	CategoryID   uint      `gorm:"primaryKey" json:"category_id"`
-	Name         string    `gorm:"unique;not null" json:"name"`
-	CreatedBy    string    `json:"created_by"`
-	CreatedAt    time.Time `json:"created_at"`
+	CategoryID uint      `gorm:"primaryKey" json:"category_id"`
+	Name       string    `gorm:"unique;not null" json:"name"`
+	CreatedBy  string    `json:"created_by"`
+	CreatedAt  time.Time `json:"created_at"`
+
+	SubCategories []SubCategory `gorm:"foreignKey:CategoryID" json:"subcategories"`
 }
 
 func (Category) TableName() string {
 	return "categories"
 }
+
 type SubCategory struct {
 	SubCategoryID uint      `gorm:"primaryKey" json:"subcategory_id"`
 	CategoryID    uint      `gorm:"not null" json:"category_id"`

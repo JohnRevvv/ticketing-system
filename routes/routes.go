@@ -85,7 +85,5 @@ func AppRoutes(app *fiber.App) {
 
 
 	// ── Add Categories and Subcategories ───────────────────────────────────────────────────────────────
-	categoryRoutes := app.Group("/categories")
-
-	categoryRoutes.Post("/with-subcategory", controllers.AddCategoryWithSubcategories)
+	userRoutes.Post("/add-category/with-subcategory", controllers.AddCategoryWithSubcategories)
 }

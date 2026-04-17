@@ -813,7 +813,34 @@ func AddCategoryWithSubcategories(c *fiber.Ctx) error {
 		})
 	}
 
-	// Start transaction (IMPORTANT)
+	// -------------------------------
+	// ✅ CHECK IF CATEGORY EXISTS
+	// -------------------------------
+	var existing models.Category
+	err = middleware.DBConn.Where("name = ?", input.Name).First(&existing).Error
+
+	if err == nil {
+		// CATEGORY ALREADY EXISTS → return clean response
+		middleware.DBConn.Preload("SubCategories").First(&existing, existing.CategoryID)
+
+		return c.Status(fiber.StatusOK).JSON(response.ResponseModel{
+			RetCode: "200",
+			Message: "Category already exists",
+			Data:    existing,
+		})
+	}
+
+	// If error is NOT record not found → real DB error
+	if err.Error() != "record not found" {
+		return c.Status(fiber.StatusInternalServerError).JSON(response.ResponseModel{
+			RetCode: "500",
+			Message: "Database error checking category",
+		})
+	}
+
+	// -------------------------------
+	// START TRANSACTION (ONLY FOR NEW CATEGORY)
+	// -------------------------------
 	tx := middleware.DBConn.Begin()
 
 	// Create category
@@ -830,11 +857,14 @@ func AddCategoryWithSubcategories(c *fiber.Ctx) error {
 		})
 	}
 
-	// Create subcategories
+	// Create subcategories (clean duplicates)
+	subMap := make(map[string]bool)
+
 	for _, sub := range input.SubCategories {
-		if sub == "" {
+		if sub == "" || subMap[sub] {
 			continue
 		}
+		subMap[sub] = true
 
 		subCategory := models.SubCategory{
 			CategoryID: category.CategoryID,
@@ -852,12 +882,22 @@ func AddCategoryWithSubcategories(c *fiber.Ctx) error {
 	}
 
 	// Commit transaction
-	tx.Commit()
+	if err := tx.Commit().Error; err != nil {
+		tx.Rollback()
+		return c.Status(500).JSON(response.ResponseModel{
+			RetCode: "500",
+			Message: "Failed to commit transaction",
+		})
+	}
+
+	// Reload with subcategories
+	var result models.Category
+	middleware.DBConn.Preload("SubCategories").
+		First(&result, category.CategoryID)
 
 	return c.Status(fiber.StatusOK).JSON(response.ResponseModel{
 		RetCode: "200",
 		Message: "Category and subcategories created successfully",
-		Data:    category,
+		Data:    result,
 	})
 }
-
