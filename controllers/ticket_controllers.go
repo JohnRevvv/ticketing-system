@@ -578,8 +578,8 @@ func HoldTicket(c *fiber.Ctx) error {
 	now := time.Now()
 
 	err := middleware.DBConn.Model(&ticket).Updates(map[string]interface{}{
-		"status":           "on hold",
-		"hold_started_at":  now,
+		"status":          "on hold",
+		"hold_started_at": now,
 	}).Error
 
 	if err != nil {

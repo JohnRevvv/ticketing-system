@@ -3,6 +3,7 @@ package controllers
 import (
 	"fmt"
 	"log"
+	"strings"
 	"ticketing-be-dev/middleware"
 	"ticketing-be-dev/models"
 	"ticketing-be-dev/models/response"
@@ -236,19 +237,19 @@ func EndorseTicket(c *fiber.Ctx) error {
 	}
 
 	// Get approver email
-	var approver []models.UserAccount
-	if err := middleware.DBConn.Where("role = ?", "approver").Find(&approver).Error; err != nil {
-		log.Println("Failed to fetch approver:", err)
+	var approver models.UserAccount
+	if err := middleware.DBConn.
+		Where("username = ?", ticket.Approver).
+		First(&approver).Error; err != nil {
+
+		log.Println("Approver not found:", err)
+		// You can choose to continue without failing the request
 	}
 
-	for _, a := range approver {
-		if a.Email != "" {
-			go func(username, email string) {
-				if err := services.SendApproverNotification(ticket, username, email); err != nil {
-					log.Println("Failed to send approver email to", email, ":", err)
-				}
-			}(a.Username, a.Email)
-		}
+	// Send email asynchronously
+	// Send email asynchronously
+	if approver.Email != "" {
+		go services.SendApproverNotification(ticket, approver.Email, approver.FullName)
 	}
 
 	return c.Status(fiber.StatusOK).JSON(response.ResponseModel{
@@ -257,6 +258,8 @@ func EndorseTicket(c *fiber.Ctx) error {
 		Data:    ticket,
 	})
 }
+
+// ── REPLACE your ApproveTicket function with this ──────────────────────────
 
 // ── Replace ONLY the ApproveTicket function in your user controller ──────────
 // The rest of the file stays exactly the same.
@@ -621,7 +624,6 @@ func UnGrabTicket(c *fiber.Ctx) error {
 }
 
 // ── Replace ONLY the ResolveTicket function in your user controller ──────────
-
 func ResolveTicket(c *fiber.Ctx) error {
 	ticketID := c.Params("id")
 
@@ -684,15 +686,8 @@ func ResolveTicket(c *fiber.Ctx) error {
 
 	if ticket.StartedAt != nil {
 		duration = now.Sub(*ticket.StartedAt)
-
-		// subtract total hold time
-		duration -= time.Duration(ticket.TotalHoldSeconds) * time.Second
-
-		// if currently on hold, subtract ongoing hold too
-		if ticket.HoldStartedAt != nil {
-			duration -= now.Sub(*ticket.HoldStartedAt)
-		}
 	} else {
+		// fallback (just in case)
 		duration = now.Sub(ticket.CreatedAt)
 	}
 
@@ -765,9 +760,8 @@ func humanDuration(duration time.Duration) string {
 	return result
 }
 
-// CATEGORY function
 func AddCategoryWithSubcategories(c *fiber.Ctx) error {
-	// Get user from JWT
+	// ── Get user from JWT ─────────────────────────────
 	userID, err := middleware.GetUserIDFromJWT(c)
 	if err != nil {
 		return c.Status(fiber.StatusUnauthorized).JSON(response.ResponseModel{
@@ -776,7 +770,6 @@ func AddCategoryWithSubcategories(c *fiber.Ctx) error {
 		})
 	}
 
-	// Get user info
 	var user models.UserAccount
 	if err := middleware.DBConn.First(&user, userID).Error; err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(response.ResponseModel{
@@ -785,7 +778,7 @@ func AddCategoryWithSubcategories(c *fiber.Ctx) error {
 		})
 	}
 
-	// Admin only
+	// ── Admin only ────────────────────────────────────
 	if user.Role != "admin" {
 		return c.Status(fiber.StatusForbidden).JSON(response.ResponseModel{
 			RetCode: "403",
@@ -793,7 +786,7 @@ func AddCategoryWithSubcategories(c *fiber.Ctx) error {
 		})
 	}
 
-	// Request body
+	// ── Request body ──────────────────────────────────
 	var input struct {
 		Name          string   `json:"name"`
 		SubCategories []string `json:"subcategories"`
@@ -813,58 +806,46 @@ func AddCategoryWithSubcategories(c *fiber.Ctx) error {
 		})
 	}
 
-	// -------------------------------
-	// ✅ CHECK IF CATEGORY EXISTS
-	// -------------------------------
-	var existing models.Category
-	err = middleware.DBConn.Where("name = ?", input.Name).First(&existing).Error
-
-	if err == nil {
-		// CATEGORY ALREADY EXISTS → return clean response
-		middleware.DBConn.Preload("SubCategories").First(&existing, existing.CategoryID)
-
-		return c.Status(fiber.StatusOK).JSON(response.ResponseModel{
-			RetCode: "200",
-			Message: "Category already exists",
-			Data:    existing,
-		})
-	}
-
-	// If error is NOT record not found → real DB error
-	if err.Error() != "record not found" {
-		return c.Status(fiber.StatusInternalServerError).JSON(response.ResponseModel{
-			RetCode: "500",
-			Message: "Database error checking category",
-		})
-	}
-
-	// -------------------------------
-	// START TRANSACTION (ONLY FOR NEW CATEGORY)
-	// -------------------------------
+	// ── Start transaction ─────────────────────────────
 	tx := middleware.DBConn.Begin()
 
-	// Create category
-	category := models.Category{
-		Name:      input.Name,
-		CreatedBy: user.Username,
+	var category models.Category
+
+	// ── CHECK IF CATEGORY EXISTS ──────────────────────
+	err = tx.Where("LOWER(name) = LOWER(?)", input.Name).First(&category).Error
+
+	if err != nil {
+		// NOT FOUND → create new
+		category = models.Category{
+			Name:      input.Name,
+			CreatedBy: user.Username,
+		}
+
+		if err := tx.Create(&category).Error; err != nil {
+			tx.Rollback()
+			return c.Status(500).JSON(response.ResponseModel{
+				RetCode: "500",
+				Message: "Failed to create category",
+			})
+		}
 	}
 
-	if err := tx.Create(&category).Error; err != nil {
-		tx.Rollback()
-		return c.Status(500).JSON(response.ResponseModel{
-			RetCode: "500",
-			Message: "Failed to create category",
-		})
-	}
-
-	// Create subcategories (clean duplicates)
-	subMap := make(map[string]bool)
-
+	// ── CREATE SUBCATEGORIES (NO DUPLICATES) ──────────
 	for _, sub := range input.SubCategories {
-		if sub == "" || subMap[sub] {
+		sub = strings.TrimSpace(sub)
+		if sub == "" {
 			continue
 		}
-		subMap[sub] = true
+
+		var existing models.SubCategory
+
+		err := tx.Where("category_id = ? AND LOWER(name) = LOWER(?)",
+			category.CategoryID, sub).First(&existing).Error
+
+		if err == nil {
+			// already exists → skip
+			continue
+		}
 
 		subCategory := models.SubCategory{
 			CategoryID: category.CategoryID,
@@ -881,140 +862,94 @@ func AddCategoryWithSubcategories(c *fiber.Ctx) error {
 		}
 	}
 
-	// Commit transaction
-	if err := tx.Commit().Error; err != nil {
-		tx.Rollback()
-		return c.Status(500).JSON(response.ResponseModel{
-			RetCode: "500",
-			Message: "Failed to commit transaction",
-		})
-	}
-
-	// Reload with subcategories
-	var result models.Category
-	middleware.DBConn.Preload("SubCategories").
-		First(&result, category.CategoryID)
+	tx.Commit()
 
 	return c.Status(fiber.StatusOK).JSON(response.ResponseModel{
 		RetCode: "200",
-		Message: "Category and subcategories created successfully",
-		Data:    result,
+		Message: "Category and subcategories saved successfully",
+		Data:    category,
 	})
 }
 
-func UpdateCategory(c *fiber.Ctx) error {
-	categoryID := c.Params("id")
+func GetCategories(c *fiber.Ctx) error {
+	var categories []models.Category
 
-	userID, err := middleware.GetUserIDFromJWT(c)
-	if err != nil {
-		return c.Status(401).JSON(response.ResponseModel{
-			RetCode: "401",
-			Message: "Unauthorized",
-		})
-	}
+	if err := middleware.DBConn.
+		Preload("SubCategories").
+		Find(&categories).Error; err != nil {
 
-	var user models.UserAccount
-	if err := middleware.DBConn.First(&user, userID).Error; err != nil {
 		return c.Status(500).JSON(response.ResponseModel{
 			RetCode: "500",
-			Message: "User not found",
+			Message: "Failed to fetch categories",
 		})
 	}
 
-	if user.Role != "admin" {
-		return c.Status(403).JSON(response.ResponseModel{
-			RetCode: "403",
-			Message: "Only admin can update category",
+	return c.Status(200).JSON(categories)
+}
+
+func UpdateCategory(c *fiber.Ctx) error {
+	id := c.Params("id")
+
+	var category models.Category
+
+	if err := middleware.DBConn.First(&category, id).Error; err != nil {
+		return c.Status(404).JSON(response.ResponseModel{
+			RetCode: "404",
+			Message: "Category not found",
 		})
 	}
 
-	// Input
 	var input struct {
-		Name          string   `json:"name"`
-		SubCategories []struct {
-			ID   uint   `json:"id"`
-			Name string `json:"name"`
-		} `json:"subcategories"`
+		Name string `json:"name"`
 	}
 
 	if err := c.BodyParser(&input); err != nil {
 		return c.Status(400).JSON(response.ResponseModel{
 			RetCode: "400",
-			Message: "Invalid request body",
+			Message: "Invalid request",
 		})
 	}
 
-	tx := middleware.DBConn.Begin()
-
-	// Update category
-	if input.Name != "" {
-		if err := tx.Model(&models.Category{}).
-			Where("category_id = ?", categoryID).
-			Update("name", input.Name).Error; err != nil {
-			tx.Rollback()
-			return c.Status(500).JSON(response.ResponseModel{
-				RetCode: "500",
-				Message: "Failed to update category",
-			})
-		}
+	if input.Name == "" {
+		return c.Status(400).JSON(response.ResponseModel{
+			RetCode: "400",
+			Message: "Name is required",
+		})
 	}
 
-	// Update subcategories
-	for _, sub := range input.SubCategories {
-		if sub.Name == "" {
-			continue
-		}
+	category.Name = input.Name
 
-		if err := tx.Model(&models.SubCategory{}).
-			Where("subcategory_id = ? AND category_id = ?", sub.ID, categoryID).
-			Update("name", sub.Name).Error; err != nil {
-			tx.Rollback()
-			return c.Status(500).JSON(response.ResponseModel{
-				RetCode: "500",
-				Message: "Failed to update subcategory",
-			})
-		}
-	}
-
-	if err := tx.Commit().Error; err != nil {
-		tx.Rollback()
+	if err := middleware.DBConn.Save(&category).Error; err != nil {
 		return c.Status(500).JSON(response.ResponseModel{
 			RetCode: "500",
-			Message: "Commit failed",
+			Message: "Failed to update category",
 		})
 	}
 
-	return c.Status(200).JSON(response.ResponseModel{
+	return c.JSON(response.ResponseModel{
 		RetCode: "200",
 		Message: "Category updated successfully",
+		Data:    category,
 	})
 }
 
 func DeleteCategory(c *fiber.Ctx) error {
-	categoryID := c.Params("id")
-
-	userID, err := middleware.GetUserIDFromJWT(c)
-	if err != nil {
-		return c.Status(401).JSON(response.ResponseModel{
-			RetCode: "401",
-			Message: "Unauthorized",
-		})
-	}
-
-	var user models.UserAccount
-	middleware.DBConn.First(&user, userID)
-
-	if user.Role != "admin" {
-		return c.Status(403).JSON(response.ResponseModel{
-			RetCode: "403",
-			Message: "Only admin can delete category",
-		})
-	}
+	id := c.Params("id")
 
 	tx := middleware.DBConn.Begin()
 
-	// Delete category (subcategories auto deleted via CASCADE)
-	if err := tx.Delete(&models.Category{}, categoryID).Error; err != nil {
+	// delete subcategories first
+	if err := tx.Where("category_id = ?", id).
+		Delete(&models.SubCategory{}).Error; err != nil {
+		tx.Rollback()
+		return c.Status(500).JSON(response.ResponseModel{
+			RetCode: "500",
+			Message: "Failed to delete subcategories",
+		})
+	}
+
+	// delete category
+	if err := tx.Delete(&models.Category{}, id).Error; err != nil {
 		tx.Rollback()
 		return c.Status(500).JSON(response.ResponseModel{
 			RetCode: "500",
@@ -1022,67 +957,26 @@ func DeleteCategory(c *fiber.Ctx) error {
 		})
 	}
 
-	if err := tx.Commit().Error; err != nil {
-		tx.Rollback()
-		return c.Status(500).JSON(response.ResponseModel{
-			RetCode: "500",
-			Message: "Commit failed",
-		})
-	}
+	tx.Commit()
 
-	return c.Status(200).JSON(response.ResponseModel{
+	return c.JSON(response.ResponseModel{
 		RetCode: "200",
-		Message: "Category and its subcategories deleted successfully",
+		Message: "Category deleted successfully",
 	})
 }
 
 func DeleteSubCategories(c *fiber.Ctx) error {
-	userID, err := middleware.GetUserIDFromJWT(c)
-	if err != nil {
-		return c.Status(401).JSON(response.ResponseModel{
-			RetCode: "401",
-			Message: "Unauthorized",
-		})
-	}
+	id := c.Params("id")
 
-	var user models.UserAccount
-	middleware.DBConn.First(&user, userID)
-
-	if user.Role != "admin" {
-		return c.Status(403).JSON(response.ResponseModel{
-			RetCode: "403",
-			Message: "Only admin can delete subcategories",
-		})
-	}
-
-	var input struct {
-		SubCategoryIDs []uint `json:"subcategory_ids"`
-	}
-
-	if err := c.BodyParser(&input); err != nil {
-		return c.Status(400).JSON(response.ResponseModel{
-			RetCode: "400",
-			Message: "Invalid request body",
-		})
-	}
-
-	if len(input.SubCategoryIDs) == 0 {
-		return c.Status(400).JSON(response.ResponseModel{
-			RetCode: "400",
-			Message: "No subcategories selected",
-		})
-	}
-
-	if err := middleware.DBConn.
-		Delete(&models.SubCategory{}, input.SubCategoryIDs).Error; err != nil {
+	if err := middleware.DBConn.Delete(&models.SubCategory{}, id).Error; err != nil {
 		return c.Status(500).JSON(response.ResponseModel{
 			RetCode: "500",
-			Message: "Failed to delete subcategories",
+			Message: "Failed to delete subcategory",
 		})
 	}
 
-	return c.Status(200).JSON(response.ResponseModel{
+	return c.JSON(response.ResponseModel{
 		RetCode: "200",
-		Message: "Subcategories deleted successfully",
+		Message: "Subcategory deleted successfully",
 	})
 }

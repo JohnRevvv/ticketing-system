@@ -82,11 +82,11 @@ func AppRoutes(app *fiber.App) {
 	userRoutes.Post("/ticket/remark", controllers.CreateTicketRemark)
 	userRoutes.Get("/ticket/:ticket_id/remarks", controllers.GetRemarksByTicket)
 
-
-
 	// ── Add Categories and Subcategories ───────────────────────────────────────────────────────────────
 	userRoutes.Post("/add-category/with-subcategory", controllers.AddCategoryWithSubcategories)
 	userRoutes.Put("/update-categories/:id", controllers.UpdateCategory)
 	userRoutes.Delete("/delete-category/:id", controllers.DeleteCategory)
 	userRoutes.Delete("/delete-subcategory/:id", controllers.DeleteSubCategories)
+	userRoutes.Get("/categories", controllers.GetCategories)
+
 }

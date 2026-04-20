@@ -11,7 +11,7 @@ import (
 )
 
 // Allowed values for Role and Status
-var validRoles = []string{"approver", "endorser", "enduser", "resolver"}
+var validRoles = []string{"approver", "endorser", "user", "resolver"}
 var validStatuses = []string{"active", "inactive"}
 
 // UpdateUserRoleStatus allows admin to update a user's role and status

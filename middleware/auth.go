@@ -2,105 +2,110 @@ package middleware
 
 import (
 	"fmt"
-	"log"
 	"os"
-	"ticketing-be-dev/models/response"
+	"strings"
 	"time"
+
+	"ticketing-be-dev/models/response"
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/golang-jwt/jwt/v5"
-	"github.com/joho/godotenv"
 )
 
-func init() {
-	err := godotenv.Load() // Load from .env file
-	if err != nil {
-		log.Println("Warning: No .env file found")
-	}
+// DO NOT preload secret at global level
+func getSecret() []byte {
+	return []byte(os.Getenv("SECRET_KEY"))
 }
 
-// Secret key for signing tokens (should be stored in env variables)
-var SecretKey = os.Getenv("SECRET_KEY")
-
-// GenerateJWT generates a new JWT token
+// ─────────────────────────────────────────────
+// Generate JWT
+// ─────────────────────────────────────────────
 func GenerateJWT(ID uint) (string, error) {
 	token := jwt.New(jwt.SigningMethodHS256)
 
 	claims := token.Claims.(jwt.MapClaims)
 	claims["id"] = ID
-	claims["exp"] = time.Now().Add(time.Hour * 72).Unix() // Expires in 72 hours
+	claims["exp"] = time.Now().Add(time.Hour * 72).Unix()
 
-	tokenString, err := token.SignedString([]byte(SecretKey))
-	if err != nil {
-		return "", err
-	}
-
-	return tokenString, nil
+	return token.SignedString(getSecret())
 }
 
+// ─────────────────────────────────────────────
+// JWT Middleware (FIXED)
+// ─────────────────────────────────────────────
 func JWTMiddleware() fiber.Handler {
 	return func(c *fiber.Ctx) error {
-		tokenString := c.Get("Authorization")
 
-		if tokenString == "" {
-			return c.JSON(response.ResponseModel{
+		authHeader := c.Get("Authorization")
+
+		if authHeader == "" {
+			return c.Status(401).JSON(response.ResponseModel{
 				RetCode: "401",
-				Message: "Unauthorized: No token provided",
-				Data:    nil,
+				Message: "Missing Authorization header",
 			})
 		}
 
-		// Remove "Bearer " prefix if present
-		if len(tokenString) > 7 && tokenString[:7] == "Bearer " {
-			tokenString = tokenString[7:]
+		// remove Bearer prefix safely
+		tokenString := strings.TrimPrefix(authHeader, "Bearer ")
+
+		if tokenString == "" {
+			return c.Status(401).JSON(response.ResponseModel{
+				RetCode: "401",
+				Message: "Invalid token format",
+			})
 		}
 
+		// parse token
 		token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
 			if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
 				return nil, fmt.Errorf("unexpected signing method")
 			}
-			return []byte(SecretKey), nil
+			return getSecret(), nil
 		})
 
 		if err != nil || !token.Valid {
-			return c.JSON(response.ResponseModel{
+			return c.Status(401).JSON(response.ResponseModel{
 				RetCode: "401",
-				Message: "Unauthorized: Invalid token",
-				Data:    nil,
+				Message: "Invalid or expired token",
 			})
 		}
 
-		fmt.Println("Token received:", tokenString)
-
-		// Get "id" from claims
 		claims, ok := token.Claims.(jwt.MapClaims)
 		if !ok {
-			return c.JSON(response.ResponseModel{
+			return c.Status(401).JSON(response.ResponseModel{
 				RetCode: "401",
-				Message: "Unauthorized: Invalid token claims",
-				Data:    nil,
+				Message: "Invalid token claims",
 			})
 		}
 
-		UserID, ok := claims["id"].(float64)
+		idFloat, ok := claims["id"].(float64)
 		if !ok {
-			return c.JSON(response.ResponseModel{
+			return c.Status(401).JSON(response.ResponseModel{
 				RetCode: "401",
-				Message: "Unauthorized: Missing User ID in token",
-				Data:    nil,
+				Message: "User ID missing in token",
 			})
 		}
 
-		c.Locals("user_id", uint(UserID))
-		return c.Next()
+		userID := uint(idFloat)
 
+		fmt.Println("AUTH USER ID:", userID)
+
+		c.Locals("user_id", userID)
+
+		return c.Next()
 	}
 }
 
+// ─────────────────────────────────────────────
+// Helper function
+// ─────────────────────────────────────────────
 func GetUserIDFromJWT(c *fiber.Ctx) (uint, error) {
-	UserID, ok := c.Locals("user_id").(uint) // JWT claims are stored as float64 in Go
+	id := c.Locals("user_id")
+
+	userID, ok := id.(uint)
 	if !ok {
 		return 0, fmt.Errorf("user ID not found in context")
 	}
-	return uint(UserID), nil
+
+	return userID, nil
 }
