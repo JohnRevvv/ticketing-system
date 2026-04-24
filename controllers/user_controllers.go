@@ -720,15 +720,22 @@ func ResolveTicket(c *fiber.Ctx) error {
 
 	// ── Notify the person who filed the ticket ────────────────────────────────
 	// ticket.Username holds the submitter's username — look up their email
+	// ✅ Mark as resolved (same as your code above)
+
+	// ── Notify the person who filed the ticket ────────────────────────────────
 	var submitter models.UserAccount
 	if err := middleware.DBConn.
 		Where("username = ?", ticket.Username).
 		First(&submitter).Error; err != nil {
-		// Not a fatal error — ticket is already resolved, just log it
-		log.Println("Could not find submitter to send resolved email:", err)
+
+		log.Println("Could not find submitter:", err)
+
 	} else if submitter.Email != "" {
+
 		submitterUsername := submitter.Username
 		submitterEmail := submitter.Email
+
+		// run async (good practice)
 		go func() {
 			if err := services.SendTicketResolvedEmail(ticket, submitterUsername, submitterEmail); err != nil {
 				log.Println("Failed to send resolved email:", err)
@@ -736,10 +743,14 @@ func ResolveTicket(c *fiber.Ctx) error {
 		}()
 	}
 
+	// ✅ THEN return response
 	return c.Status(fiber.StatusOK).JSON(response.ResponseModel{
 		RetCode: "200",
 		Message: "Ticket resolved successfully",
-		Data:    ticket,
+		Data: fiber.Map{
+			"ticket":     ticket,
+			"resolution": resolutionStr,
+		},
 	})
 }
 
