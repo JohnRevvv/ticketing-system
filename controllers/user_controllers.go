@@ -237,19 +237,25 @@ func EndorseTicket(c *fiber.Ctx) error {
 	}
 
 	// Get approver email
-	var approver models.UserAccount
+	var approvers []models.UserAccount
 	if err := middleware.DBConn.
-		Where("username = ?", ticket.Approver).
-		First(&approver).Error; err != nil {
+		Where("role = ?", "approver").
+		Find(&approvers).Error; err != nil {
 
-		log.Println("Approver not found:", err)
-		// You can choose to continue without failing the request
-	}
+		log.Println("Failed to fetch approvers:", err)
+	} else {
 
-	// Send email asynchronously
-	// Send email asynchronously
-	if approver.Email != "" {
-		go services.SendApproverNotification(ticket, approver.Email, approver.FullName)
+		for _, approver := range approvers {
+			if approver.Email != "" {
+
+				// async email
+				go services.SendApproverNotification(
+					ticket,
+					approver.Email,
+					approver.FullName,
+				)
+			}
+		}
 	}
 
 	return c.Status(fiber.StatusOK).JSON(response.ResponseModel{

@@ -207,7 +207,7 @@ func SendEndorserNotification(ticket models.CreateTicket, toEmail string) error 
 }
 
 // SendApproverNotification — called after EndorseTicket succeeds
-func SendApproverNotification(ticket models.CreateTicket, approverUsername string, toEmail string) error {
+func SendApproverNotification(ticket models.CreateTicket, toEmail string, fullName string) error {
 	from := os.Getenv("EMAIL_ADDRESS")
 	password := os.Getenv("EMAIL_PASSWORD")
 	smtpHost := os.Getenv("SMTP_HOST")
@@ -240,10 +240,6 @@ func SendApproverNotification(ticket models.CreateTicket, approverUsername strin
       padding-bottom: 10px;
       border-bottom: 1px solid #eee;
     }
-    .header h2 {
-      color: #2c3e50;
-      margin: 0;
-    }
     .ticket-box {
       background: #f9fafb;
       padding: 15px;
@@ -263,17 +259,11 @@ func SendApproverNotification(ticket models.CreateTicket, approverUsername strin
       border-top: 1px solid #eee;
       padding-top: 15px;
     }
-    .note {
-      font-size: 12px;
-      color: #999;
-      margin-top: 5px;
-    }
   </style>
 </head>
 <body>
 
   <div class="container">
-
     <div class="header">
       <h2>Ticket Ready for Approval</h2>
       <p>A ticket has been endorsed and requires your action.</p>
@@ -291,19 +281,24 @@ func SendApproverNotification(ticket models.CreateTicket, approverUsername strin
     <div class="footer">
       <p><b>Note:</b> This message is auto-generated.</p>
       <p>Please do not reply to this email.</p>
-      <div class="note">For concerns, contact your system administrator.</div>
     </div>
-
   </div>
 
 </body>
 </html>
-`, approverUsername, ticket.TicketID, ticket.Subject, ticket.Category, ticket.Priority, ticket.Endorser)
+`,
+		fullName,                 // ✅ Hello name
+		ticket.TicketID,
+		ticket.Subject,
+		ticket.Category,
+		ticket.Priority,
+		ticket.Endorser,
+	)
 
 	msg := []byte(
 		"Subject: " + subject + "\r\n" +
 			"MIME-Version: 1.0\r\n" +
-			"Content-Type: text/html; charset=\"UTF-8\"\r\n\r\n" + // ✅ FIXED
+			"Content-Type: text/html; charset=\"UTF-8\"\r\n\r\n" +
 			body,
 	)
 
