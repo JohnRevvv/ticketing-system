@@ -18,15 +18,15 @@ func GetEnv(key string) string {
 
 func ConnectDB() bool {
 	dsn := fmt.Sprintf(
-	"host=%s port=%s dbname=%s user=%s password=%s sslmode=%s TimeZone=%s",
-	os.Getenv("DB_HOST"),
-	os.Getenv("DB_PORT"),
-	os.Getenv("DB_NAME"),
-	os.Getenv("DB_USER"),
-	os.Getenv("DB_PASSWORD"),
-	os.Getenv("DB_SSLMODE"),   // MUST be exactly as in .env
-	os.Getenv("DB_TIMEZONE"),  // MUST be exactly as in .env
-)
+		"host=%s port=%s dbname=%s user=%s password=%s sslmode=%s TimeZone=%s",
+		os.Getenv("DB_HOST"),
+		os.Getenv("DB_PORT"),
+		os.Getenv("DB_NAME"),
+		os.Getenv("DB_USER"),
+		os.Getenv("DB_PASSWORD"),
+		os.Getenv("DB_SSLMODE"),  // MUST be exactly as in .env
+		os.Getenv("DB_TIMEZONE"), // MUST be exactly as in .env
+	)
 
 	fmt.Println("DEBUG DSN:", dsn) // <--- check DSN
 
@@ -45,13 +45,10 @@ func ConnectDB() bool {
 		&models.TicketAttachment{},
 		&models.TicketRemark{},
 		&models.Category{},
-		&models.SubCategory{});
-		err != nil {
+		&models.SubCategory{}); err != nil {
 		log.Println("❌ Auto-migration failed:", err)
 		return true
 	}
-
-
 	log.Println("✅ Database connected and migrated")
 	return false
 }

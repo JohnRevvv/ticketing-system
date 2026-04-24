@@ -414,7 +414,7 @@ func SendResolverNotification(ticket models.CreateTicket, resolverUsername strin
 	msg := []byte(
 		"Subject: " + subject + "\r\n" +
 			"MIME-Version: 1.0\r\n" +
-			"Content-Type: text/html; charset=\"UTF-8\r\n\r\n" +
+			"Content-Type: text/html; charset=\"UTF-8\"\r\n\r\n" +
 			body,
 	)
 
@@ -538,7 +538,7 @@ func SendTicketResolvedEmail(ticket models.CreateTicket, submitterUsername strin
 	msg := []byte(
 		"Subject: " + subject + "\r\n" +
 			"MIME-Version: 1.0\r\n" +
-			"Content-Type: text/html; charset=\"UTF-8\r\n\r\n" +
+			"Content-Type: text/html; charset=\"UTF-8\"\r\n\r\n" +
 			body,
 	)
 
