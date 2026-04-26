@@ -567,26 +567,39 @@ func HoldTicket(c *fiber.Ctx) error {
 
 	var ticket models.CreateTicket
 	if err := middleware.DBConn.Where("ticket_id = ?", ticketID).First(&ticket).Error; err != nil {
-		return err
+		return c.Status(404).JSON(fiber.Map{
+			"message": "Ticket not found",
+		})
 	}
 
-	// Prevent multiple holds
-	if ticket.HoldStartedAt != nil {
-		return c.Status(400).JSON(fiber.Map{"message": "Already on hold"})
+	// prevent invalid states
+	if ticket.Status == "resolved" {
+		return c.Status(400).JSON(fiber.Map{
+			"message": "Cannot hold a resolved ticket",
+		})
+	}
+
+	if ticket.OnHold {
+		return c.Status(400).JSON(fiber.Map{
+			"message": "Ticket already on hold",
+		})
 	}
 
 	now := time.Now()
 
-	err := middleware.DBConn.Model(&ticket).Updates(map[string]interface{}{
-		"status":          "on hold",
+	if err := middleware.DBConn.Model(&ticket).Updates(map[string]interface{}{
+		"on_hold":         true,
 		"hold_started_at": now,
-	}).Error
-
-	if err != nil {
-		return err
+	}).Error; err != nil {
+		return c.Status(500).JSON(fiber.Map{
+			"message": "Failed to put ticket on hold",
+		})
 	}
 
-	return c.JSON(fiber.Map{"message": "Ticket placed on hold"})
+	return c.JSON(fiber.Map{
+		"success": true,
+		"message": "Ticket placed on hold",
+	})
 }
 
 func ResumeTicket(c *fiber.Ctx) error {
@@ -594,29 +607,39 @@ func ResumeTicket(c *fiber.Ctx) error {
 
 	var ticket models.CreateTicket
 	if err := middleware.DBConn.Where("ticket_id = ?", ticketID).First(&ticket).Error; err != nil {
-		return err
+		return c.Status(404).JSON(fiber.Map{
+			"message": "Ticket not found",
+		})
 	}
 
-	if ticket.HoldStartedAt == nil {
-		return c.Status(400).JSON(fiber.Map{"message": "Ticket is not on hold"})
+	if !ticket.OnHold {
+		return c.Status(400).JSON(fiber.Map{
+			"message": "Ticket is not on hold",
+		})
 	}
 
 	now := time.Now()
 
-	// compute hold duration
-	holdDuration := now.Sub(*ticket.HoldStartedAt)
+	var holdDuration float64 = 0
 
-	totalHold := ticket.TotalHoldSeconds + holdDuration.Seconds()
-
-	err := middleware.DBConn.Model(&ticket).Updates(map[string]interface{}{
-		"status":             "in progress",
-		"hold_started_at":    nil,
-		"total_hold_seconds": totalHold,
-	}).Error
-
-	if err != nil {
-		return err
+	if ticket.HoldStartedAt != nil {
+		holdDuration = now.Sub(*ticket.HoldStartedAt).Seconds()
 	}
 
-	return c.JSON(fiber.Map{"message": "Ticket resumed"})
+	totalHold := float64(ticket.TotalHoldSeconds) + holdDuration
+
+	if err := middleware.DBConn.Model(&ticket).Updates(map[string]interface{}{
+		"on_hold":            false,
+		"hold_started_at":    nil,
+		"total_hold_seconds": totalHold,
+	}).Error; err != nil {
+		return c.Status(500).JSON(fiber.Map{
+			"message": "Failed to resume ticket",
+		})
+	}
+
+	return c.JSON(fiber.Map{
+		"success": true,
+		"message": "Ticket resumed",
+	})
 }

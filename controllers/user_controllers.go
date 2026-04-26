@@ -629,11 +629,10 @@ func UnGrabTicket(c *fiber.Ctx) error {
 	})
 }
 
-// ── Replace ONLY the ResolveTicket function in your user controller ──────────
 func ResolveTicket(c *fiber.Ctx) error {
 	ticketID := c.Params("id")
 
-	// Get user from JWT
+	// 🔐 Get user from JWT
 	userID, err := middleware.GetUserIDFromJWT(c)
 	if err != nil {
 		return c.Status(fiber.StatusUnauthorized).JSON(response.ResponseModel{
@@ -642,7 +641,7 @@ func ResolveTicket(c *fiber.Ctx) error {
 		})
 	}
 
-	// Get user info
+	// 👤 Get user info
 	var user models.UserAccount
 	if err := middleware.DBConn.First(&user, userID).Error; err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(response.ResponseModel{
@@ -651,7 +650,7 @@ func ResolveTicket(c *fiber.Ctx) error {
 		})
 	}
 
-	// Role check
+	// 🚫 Role check
 	if user.Role != "resolver" {
 		return c.Status(fiber.StatusForbidden).JSON(response.ResponseModel{
 			RetCode: "403",
@@ -659,7 +658,7 @@ func ResolveTicket(c *fiber.Ctx) error {
 		})
 	}
 
-	// Get ticket
+	// 🎫 Get ticket
 	var ticket models.CreateTicket
 	if err := middleware.DBConn.Where("ticket_id = ?", ticketID).First(&ticket).Error; err != nil {
 		return c.Status(fiber.StatusNotFound).JSON(response.ResponseModel{
@@ -668,7 +667,7 @@ func ResolveTicket(c *fiber.Ctx) error {
 		})
 	}
 
-	// Must be in progress
+	// ⚠️ Must be in progress
 	if ticket.Status != "in progress" {
 		return c.Status(fiber.StatusBadRequest).JSON(response.ResponseModel{
 			RetCode: "400",
@@ -676,7 +675,7 @@ func ResolveTicket(c *fiber.Ctx) error {
 		})
 	}
 
-	// Only the assigned resolver can resolve
+	// 🔒 Only assigned resolver can resolve
 	if ticket.Assignee != user.Username {
 		return c.Status(fiber.StatusForbidden).JSON(response.ResponseModel{
 			RetCode: "403",
@@ -684,66 +683,58 @@ func ResolveTicket(c *fiber.Ctx) error {
 		})
 	}
 
-	// ✅ Mark as resolved
+	// ✅ Calculate net working duration (wall time − hold time)
 	now := time.Now()
-
-	// compute SLA (minutes)
-	var duration time.Duration
-
+	var wallDuration time.Duration
 	if ticket.StartedAt != nil {
-		duration = now.Sub(*ticket.StartedAt)
+		wallDuration = now.Sub(*ticket.StartedAt)
 	} else {
-		// fallback (just in case)
-		duration = now.Sub(ticket.CreatedAt)
+		wallDuration = now.Sub(ticket.CreatedAt)
 	}
 
-	resolutionStr := humanDuration(duration)
+	// Subtract accumulated hold seconds
+	holdSeconds := ticket.TotalHoldSeconds
+	if ticket.OnHold && ticket.HoldStartedAt != nil {
+		holdSeconds += now.Sub(*ticket.HoldStartedAt).Seconds()
+	}
+	netDuration := wallDuration - time.Duration(holdSeconds)*time.Second
+	if netDuration < 0 {
+		netDuration = 0
+	}
 
-	// update DB (optional: add "resolution_str": resolutionStr,)
+	resolutionStr := humanDuration(netDuration)
+
+	// 💾 Update DB
 	if err := middleware.DBConn.Model(&ticket).Updates(map[string]interface{}{
 		"status":             "resolved",
 		"resolved_at":        now,
-		"resolution_minutes": duration.Minutes(),
-		// "resolution_str":   resolutionStr, // if you want to store it
+		"resolution_minutes": netDuration.Minutes(), // clean net minutes, no hold
+		"resolution_time":    resolutionStr,         // ← add this
 	}).Error; err != nil {
-		// handle error as before
+		return c.Status(fiber.StatusInternalServerError).JSON(response.ResponseModel{
+			RetCode: "500",
+			Message: "Failed to resolve ticket",
+		})
 	}
-	// response, include formatted string
-	return c.Status(fiber.StatusOK).JSON(response.ResponseModel{
-		RetCode: "200",
-		Message: "Ticket resolved successfully",
-		Data: fiber.Map{
-			"ticket":     ticket,
-			"resolution": resolutionStr, // <-- This is the readable format
-		},
-	})
 
-	// ── Notify the person who filed the ticket ────────────────────────────────
-	// ticket.Username holds the submitter's username — look up their email
-	// ✅ Mark as resolved (same as your code above)
-
-	// ── Notify the person who filed the ticket ────────────────────────────────
+	// 📧 SEND EMAIL
 	var submitter models.UserAccount
 	if err := middleware.DBConn.
 		Where("username = ?", ticket.Username).
 		First(&submitter).Error; err != nil {
-
-		log.Println("Could not find submitter:", err)
-
+		log.Println("❌ Could not find submitter:", err)
 	} else if submitter.Email != "" {
-
-		submitterUsername := submitter.Username
-		submitterEmail := submitter.Email
-
-		// run async (good practice)
-		go func() {
-			if err := services.SendTicketResolvedEmail(ticket, submitterUsername, submitterEmail); err != nil {
-				log.Println("Failed to send resolved email:", err)
+		log.Println("📧 Sending resolved email to:", submitter.Email)
+		go func(t models.CreateTicket, username, email string) {
+			if err := services.SendTicketResolvedEmail(t, username, email); err != nil {
+				log.Println("❌ Failed to send resolved email:", err)
+			} else {
+				log.Println("✅ Email sent to:", email)
 			}
-		}()
+		}(ticket, submitter.Username, submitter.Email)
 	}
 
-	// ✅ THEN return response
+	// ✅ RESPONSE
 	return c.Status(fiber.StatusOK).JSON(response.ResponseModel{
 		RetCode: "200",
 		Message: "Ticket resolved successfully",
@@ -754,27 +745,24 @@ func ResolveTicket(c *fiber.Ctx) error {
 	})
 }
 
-func humanDuration(duration time.Duration) string {
-	seconds := int(duration.Seconds())
-	days := seconds / 86400
-	seconds %= 86400
-	hours := seconds / 3600
-	seconds %= 3600
-	minutes := seconds / 60
-	seconds %= 60
+// ── humanDuration: formats duration as  1d 02h 30m 15s  ─────────────────────
+func humanDuration(d time.Duration) string {
+	if d < 0 {
+		d = 0
+	}
+	total := int(d.Seconds())
+	days := total / 86400
+	hours := (total % 86400) / 3600
+	minutes := (total % 3600) / 60
+	seconds := total % 60
 
-	result := ""
 	if days > 0 {
-		result += fmt.Sprintf("%dd:", days)
+		return fmt.Sprintf("%dd %02dh %02dm %02ds", days, hours, minutes, seconds)
 	}
-	if days > 0 || hours > 0 {
-		result += fmt.Sprintf("%dh:", hours)
+	if hours > 0 {
+		return fmt.Sprintf("%02dh %02dm %02ds", hours, minutes, seconds)
 	}
-	if days > 0 || hours > 0 || minutes > 0 {
-		result += fmt.Sprintf("%dm:", minutes)
-	}
-	result += fmt.Sprintf("%ds", seconds)
-	return result
+	return fmt.Sprintf("%02dm %02ds", minutes, seconds)
 }
 
 func AddCategoryWithSubcategories(c *fiber.Ctx) error {

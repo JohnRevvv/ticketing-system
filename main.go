@@ -36,10 +36,11 @@ func main() {
 
 	// CORS
 	app.Use(cors.New(cors.Config{
-		AllowOrigins: "*",
-		AllowMethods: "GET,POST,PUT,DELETE,OPTIONS",
-		AllowHeaders: "Origin, Content-Type, Accept, Authorization",
+    AllowOrigins: "*",
+    AllowMethods: "GET,POST,PUT,PATCH,DELETE,OPTIONS",
+    AllowHeaders: "Origin, Content-Type, Accept, Authorization",
 	}))
+
 
 	// ── Static file serving ───────────────────────────────────────────────────
 	// Files are saved to ./upload/attachments/xxx on disk.

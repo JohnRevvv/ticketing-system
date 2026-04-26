@@ -6,6 +6,7 @@ import (
 	"net/smtp"
 	"os"
 	"ticketing-be-dev/models"
+  "encoding/base64"
 )
 
 func SendResetPasswordEmail(toEmail string, code string) error {
@@ -428,119 +429,68 @@ func SendTicketResolvedEmail(ticket models.CreateTicket, submitterUsername strin
 	password := os.Getenv("EMAIL_PASSWORD")
 	smtpHost := os.Getenv("SMTP_HOST")
 
+	// AUTH
 	auth := smtp.PlainAuth("", from, password, smtpHost)
 
-	subject := "✅ Your Ticket Has Been Resolved"
+	// ENCODE SUBJECT (for emoji)
+	subject := encodeSubject("✅ Your Ticket Has Been Resolved")
 
-	body := fmt.Sprintf(`
-<!DOCTYPE html>
+	// HTML BODY
+	body := fmt.Sprintf(`<!DOCTYPE html>
 <html>
 <head>
-  <style>
-    body {
-      font-family: Arial, sans-serif;
-      background-color: #f4f6f8;
-      margin: 0;
-      padding: 20px;
-    }
-    .container {
-      max-width: 600px;
-      margin: auto;
-      background: #ffffff;
-      padding: 25px;
-      border-radius: 10px;
-      box-shadow: 0 4px 10px rgba(0,0,0,0.08);
-    }
-    .header {
-      text-align: center;
-      padding-bottom: 10px;
-      border-bottom: 1px solid #eee;
-    }
-    .header h2 {
-      color: #155724;
-      margin: 0;
-    }
-    .badge {
-      display: inline-block;
-      background-color: #d4edda;
-      color: #155724;
-      font-size: 16px;
-      font-weight: bold;
-      padding: 10px 18px;
-      border-radius: 8px;
-      margin: 20px 0;
-    }
-    .ticket-box {
-      background: #f9fafb;
-      padding: 15px;
-      margin-top: 20px;
-      border-radius: 8px;
-      border-left: 5px solid #28a745;
-    }
-    .label {
-      font-weight: bold;
-      color: #555;
-    }
-    .footer {
-      margin-top: 25px;
-      font-size: 12px;
-      text-align: center;
-      color: #888;
-      border-top: 1px solid #eee;
-      padding-top: 15px;
-    }
-    .note {
-      font-size: 12px;
-      color: #999;
-      margin-top: 5px;
-    }
-  </style>
+  <meta charset="UTF-8">
 </head>
 <body>
+  <h2>Ticket Resolved Successfully</h2>
+  <p>Hello %s,</p>
+  <p>Your ticket has been resolved.</p>
 
-  <div class="container">
-
-    <div class="header">
-      <h2>Ticket Resolved Successfully</h2>
-      <p>Good news! Your ticket has been completed.</p>
-    </div>
-
-    <div style="text-align:center;">
-      <div class="badge">Resolved ✓</div>
-    </div>
-
-    <div class="ticket-box">
-      <p><span class="label">Hello:</span> %s</p>
-      <p><span class="label">Ticket ID:</span> %s</p>
-      <p><span class="label">Subject:</span> %s</p>
-      <p><span class="label">Category:</span> %s</p>
-      <p><span class="label">Priority:</span> %s</p>
-      <p><span class="label">Resolved By:</span> %s</p>
-    </div>
-
-    <div class="footer">
-      <p><b>Note:</b> This message is auto-generated.</p>
-      <p>Please do not reply to this email.</p>
-      <div class="note">If you have further concerns, please contact the resolver.</div>
-    </div>
-
+  <div>
+    <p><b>Ticket ID:</b> %s</p>
+    <p><b>Subject:</b> %s</p>
+    <p><b>Category:</b> %s</p>
+    <p><b>Priority:</b> %s</p>
+    <p><b>Resolved By:</b> %s</p>
   </div>
 
+  <br/>
+  <p style="font-size:12px;color:#888;">
+    This is an automated email. Do not reply.
+  </p>
 </body>
-</html>
-`, submitterUsername, ticket.TicketID, ticket.Subject, ticket.Category, ticket.Priority, ticket.Assignee)
+</html>`,
+		submitterUsername,
+		ticket.TicketID,
+		ticket.Subject,
+		ticket.Category,
+		ticket.Priority,
+		ticket.Assignee,
+	)
 
+	// FULL MESSAGE WITH HEADERS
 	msg := []byte(
-		"Subject: " + subject + "\r\n" +
+		"From: " + from + "\r\n" +
+			"To: " + toEmail + "\r\n" +
+			"Subject: " + subject + "\r\n" +
 			"MIME-Version: 1.0\r\n" +
-			"Content-Type: text/html; charset=\"UTF-8\"\r\n\r\n" +
+			"Content-Type: text/html; charset=\"UTF-8\"\r\n" +
+			"Content-Transfer-Encoding: 8bit\r\n\r\n" +
 			body,
 	)
 
+	// SEND EMAIL
 	err := smtp.SendMail(smtpHost+":587", auth, from, []string{toEmail}, msg)
 	if err != nil {
 		log.Println("Failed to send resolved email:", err)
+		return fmt.Errorf("email send failed: %w", err)
 	}
+  log.Println("✅ Email sent successfully to:", toEmail)
 
-	return err
+	return nil
+}
+
+func encodeSubject(subject string) string {
+	encoded := base64.StdEncoding.EncodeToString([]byte(subject))
+	return "=?UTF-8?B?" + encoded + "?="
 }

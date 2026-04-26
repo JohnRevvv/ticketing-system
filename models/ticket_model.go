@@ -22,7 +22,8 @@ type CreateTicket struct {
 	StartedAt         *time.Time `json:"started_at"`
 	ResolvedAt        *time.Time `json:"resolved_at"`
 	ResolutionMinutes float64    `json:"resolution_minutes"`
-	OnHold            bool       `json:"onhold"             gorm:"default:false"`
+	ResolutionTime    string     `json:"resolution_time" gorm:"column:resolution_time;default:''"`
+	OnHold            bool       `json:"onhold" gorm:"column:on_hold;default:false"`
 	HoldStartedAt     *time.Time `json:"hold_started_at"`
 	TotalHoldSeconds  float64    `json:"total_hold_seconds"`
 }
