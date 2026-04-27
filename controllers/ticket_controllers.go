@@ -184,8 +184,6 @@ func CreateTicket(c *fiber.Ctx) error {
 
 func GetAllTickets(c *fiber.Ctx) error {
 	var tickets []models.CreateTicket
-
-	// Fetch all tickets ordered by creation date
 	if err := middleware.DBConn.Order("created_at desc").Find(&tickets).Error; err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(response.ResponseModel{
 			RetCode: "500",
@@ -193,25 +191,44 @@ func GetAllTickets(c *fiber.Ctx) error {
 		})
 	}
 
-	// Prepare response with attachments
-	var responseData []fiber.Map
-
-	for _, ticket := range tickets {
-		var attachments []models.TicketAttachment
-		_ = middleware.DBConn.Where("ticket_id = ?", ticket.TicketID).Find(&attachments).Error
-
-		responseData = append(responseData, fiber.Map{
-			"ticket":      ticket,
-			"attachments": attachments,
-		})
-	}
-
-	// If no tickets found
 	if len(tickets) == 0 {
 		return c.Status(fiber.StatusOK).JSON(response.ResponseModel{
 			RetCode: "200",
 			Message: "No tickets found",
 			Data:    []string{},
+		})
+	}
+
+	var responseData []fiber.Map
+	for _, ticket := range tickets {
+		var attachments []models.TicketAttachment
+		_ = middleware.DBConn.Where("ticket_id = ?", ticket.TicketID).Find(&attachments).Error
+
+		responseData = append(responseData, fiber.Map{
+			"ticket_id":          ticket.TicketID,
+			"username":           ticket.Username,
+			"category":           ticket.Category,
+			"subject":            ticket.Subject,
+			"institution":        ticket.Institution,
+			"tickettype":         ticket.Tickettype,
+			"description":        ticket.Description,
+			"priority":           ticket.Priority,
+			"assignee":           ticket.Assignee,
+			"endorser":           ticket.Endorser,
+			"approver":           ticket.Approver,
+			"status":             ticket.Status,
+			"created_at":         ticket.CreatedAt,
+			"updated_at":         ticket.UpdatedAt,
+			"cancelled_by":       ticket.CancelledBy,
+			"cancelled_at":       ticket.CancelledAt,
+			"started_at":         ticket.StartedAt,
+			"resolved_at":        ticket.ResolvedAt,
+			"resolution_minutes": ticket.ResolutionMinutes,
+			"resolution_time":    ticket.ResolutionTime,
+			"onhold":             ticket.OnHold,
+			"hold_started_at":    ticket.HoldStartedAt,
+			"total_hold_seconds": ticket.TotalHoldSeconds,
+			"attachments":        attachments,
 		})
 	}
 
