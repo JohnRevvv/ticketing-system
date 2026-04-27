@@ -50,6 +50,7 @@ func AppRoutes(app *fiber.App) {
 
 	// ── Ticket CRUD ───────────────────────────────────────────────────────────
 	userRoutes.Post("/ticket/create", controllers.CreateTicket)
+	userRoutes.Put("/ticket/update/:id", controllers.UpdateTicket)
 	userRoutes.Get("/list/my/tickets", controllers.GetUserTickets)
 	userRoutes.Get("/list/all/tickets", controllers.GetAllTickets)
 

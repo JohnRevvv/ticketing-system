@@ -182,6 +182,145 @@ func CreateTicket(c *fiber.Ctx) error {
 	})
 }
 
+func UpdateTicket(c *fiber.Ctx) error {
+	tx := middleware.DBConn.Begin()
+
+	// Get ticket ID from params
+	ticketID := c.Params("id")
+
+	// Get user from JWT
+	userID, err := middleware.GetUserIDFromJWT(c)
+	if err != nil {
+		tx.Rollback()
+		return c.Status(fiber.StatusUnauthorized).JSON(response.ResponseModel{
+			RetCode: "401",
+			Message: "Unauthorized",
+		})
+	}
+
+	var user models.UserAccount
+	if err := tx.First(&user, userID).Error; err != nil {
+		tx.Rollback()
+		return c.Status(fiber.StatusInternalServerError).JSON(response.ResponseModel{
+			RetCode: "500",
+			Message: "Failed to fetch user",
+		})
+	}
+
+	// Get existing ticket
+	var ticket models.CreateTicket
+	if err := tx.Where("ticket_id = ?", ticketID).First(&ticket).Error; err != nil {
+		tx.Rollback()
+		return c.Status(fiber.StatusNotFound).JSON(response.ResponseModel{
+			RetCode: "404",
+			Message: "Ticket not found",
+		})
+	}
+
+	// 🔒 Check ownership
+	if ticket.Username != user.Username {
+		tx.Rollback()
+		return c.Status(fiber.StatusForbidden).JSON(response.ResponseModel{
+			RetCode: "403",
+			Message: "You are not allowed to edit this ticket",
+		})
+	}
+
+	// 🔒 Check status
+	if ticket.Status != "for endorsement" {
+		tx.Rollback()
+		return c.Status(fiber.StatusBadRequest).JSON(response.ResponseModel{
+			RetCode: "400",
+			Message: "Ticket can no longer be edited",
+		})
+	}
+
+	// Update fields
+	ticket.Subject = c.FormValue("subject")
+	ticket.Category = c.FormValue("category")
+	ticket.Institution = c.FormValue("institution")
+	ticket.Tickettype = c.FormValue("tickettype")
+	ticket.Description = c.FormValue("description")
+	ticket.Assignee = c.FormValue("assignee")
+	ticket.Priority = c.FormValue("priority")
+	ticket.Endorser = c.FormValue("endorser")
+	ticket.Approver = c.FormValue("approver")
+
+	// Save updates
+	if err := tx.Save(&ticket).Error; err != nil {
+		tx.Rollback()
+		return c.Status(fiber.StatusInternalServerError).JSON(response.ResponseModel{
+			RetCode: "500",
+			Message: "Failed to update ticket",
+		})
+	}
+
+	// OPTIONAL: Handle new attachments (append only)
+	form, err := c.MultipartForm()
+	if err == nil && form.File != nil {
+		files := form.File["attachments"]
+
+		baseUploadPath := os.Getenv("UPLOAD_PATH")
+		if baseUploadPath == "" {
+			baseUploadPath = "uploads/attachments"
+		}
+
+		os.MkdirAll(baseUploadPath, os.ModePerm)
+
+		for _, file := range files {
+			if file.Size > 5*1024*1024 {
+				tx.Rollback()
+				return c.Status(fiber.StatusBadRequest).JSON(response.ResponseModel{
+					RetCode: "400",
+					Message: "File too large (max 5MB)",
+				})
+			}
+
+			cleanFileName := sanitizeFileName(file.Filename)
+			savedFileName := fmt.Sprintf("%s_%d_%s", ticket.TicketID, time.Now().UnixNano(), cleanFileName)
+			filePath := fmt.Sprintf("%s/%s", baseUploadPath, savedFileName)
+
+			if err := c.SaveFile(file, filePath); err != nil {
+				tx.Rollback()
+				return c.Status(fiber.StatusInternalServerError).JSON(response.ResponseModel{
+					RetCode: "500",
+					Message: "Failed to save attachment",
+				})
+			}
+
+			attachment := models.TicketAttachment{
+				TicketID:   ticket.TicketID,
+				FileName:   cleanFileName,
+				FilePath:   filePath,
+				UploadedBy: user.Username,
+			}
+
+			if err := tx.Create(&attachment).Error; err != nil {
+				tx.Rollback()
+				return c.Status(fiber.StatusInternalServerError).JSON(response.ResponseModel{
+					RetCode: "500",
+					Message: "Failed to save attachment metadata",
+				})
+			}
+		}
+	}
+
+	// Commit
+	if err := tx.Commit().Error; err != nil {
+		tx.Rollback()
+		return c.Status(fiber.StatusInternalServerError).JSON(response.ResponseModel{
+			RetCode: "500",
+			Message: "Failed to commit update",
+		})
+	}
+
+	return c.Status(fiber.StatusOK).JSON(response.ResponseModel{
+		RetCode: "200",
+		Message: "Ticket updated successfully",
+		Data:    ticket,
+	})
+}
+
 func GetAllTickets(c *fiber.Ctx) error {
 	var tickets []models.CreateTicket
 	if err := middleware.DBConn.Order("created_at desc").Find(&tickets).Error; err != nil {
