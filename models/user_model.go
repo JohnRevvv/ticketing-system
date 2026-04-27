@@ -37,6 +37,7 @@ type SubCategory struct {
 	SubCategoryID uint      `gorm:"primaryKey" json:"subcategory_id"`
 	CategoryID    uint      `gorm:"not null" json:"category_id"`
 	Name          string    `gorm:"not null" json:"name"`
+	Description   string    `json:"description"`
 	CreatedBy     string    `json:"created_by"`
 	CreatedAt     time.Time `json:"created_at"`
 }

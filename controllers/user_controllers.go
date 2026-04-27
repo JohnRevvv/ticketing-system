@@ -20,7 +20,6 @@ func Register(c *fiber.Ctx) error {
 		Password string `json:"password"`
 		FullName string `json:"full_name"`
 		Position string `json:"position"`
-		Role     string `json:"role"`
 		Email    string `json:"email"`
 	}
 
@@ -63,8 +62,7 @@ func Register(c *fiber.Ctx) error {
 		FullName: body.FullName,
 		Email:    body.Email,
 		Position: body.Position,
-		Role:     body.Role,
-		Status:   "active",
+		Status:   "inactive",
 	}
 
 	if err := middleware.DBConn.Create(&user).Error; err != nil {
