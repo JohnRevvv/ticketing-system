@@ -1,12 +1,12 @@
 package services
 
 import (
+	"encoding/base64"
 	"fmt"
 	"log"
 	"net/smtp"
 	"os"
 	"ticketing-be-dev/models"
-  "encoding/base64"
 )
 
 func SendResetPasswordEmail(toEmail string, code string) error {
@@ -70,6 +70,8 @@ func SendPasswordResetSuccessEmail(toEmail string, username string) error {
     body { font-family: Arial, sans-serif; background-color: #f5f5f5; color: #333333; padding: 20px; }
     h2 { font-weight: bold; }
     .container { background-color: #ffffff; padding: 30px; border-radius: 10px; text-align: center; max-width: 500px; margin: auto; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+    .btn { display: inline-block; margin-top: 20px; padding: 12px 25px; font-size: 16px;color: #ffffff; background-color: #007bff; text-decoration: none; border-radius: 6px; }
+    .btn:hover { background-color: #0056b3; }
     .success { display: inline-block; font-size: 28px; font-weight: bold; margin: 20px 0; padding: 15px 25px; background-color: #d4edda; color: #155724; border-radius: 8px; }
     .footer { font-size: 14px; color: #666666; margin-top: 20px; }
   </style>
@@ -80,6 +82,10 @@ func SendPasswordResetSuccessEmail(toEmail string, username string) error {
     <p>Hello %s,</p>
     <div class="success">Your password has been successfully reset!</div>
     <p>You can now log in using your new password.</p>
+
+    <!-- LOGIN BUTTON -->
+    <a href="https://ideyanale.bakawan-ai.com/login" class="btn">Go to Login</a>
+
     <p class="footer">If you did not perform this action, please contact support immediately.</p>
   </div>
 </body>
@@ -150,6 +156,19 @@ func SendEndorserNotification(ticket models.CreateTicket, toEmail string) error 
     .value {
       color: #222;
     }
+    .btn {
+      display: inline-block;
+      margin-top: 20px;
+      padding: 12px 25px;
+      font-size: 16px;
+      color: #ffffff;
+      background-color: #007bff;
+      text-decoration: none;
+      border-radius: 6px;
+    }
+    .btn:hover {
+      background-color: #0056b3;
+    }
     .footer {
       margin-top: 25px;
       font-size: 12px;
@@ -180,6 +199,9 @@ func SendEndorserNotification(ticket models.CreateTicket, toEmail string) error 
       <p><span class="label">Priority:</span> %s</p>
       <p><span class="label">Submitted By:</span> %s</p>
     </div>
+
+    <!-- LOGIN BUTTON -->
+    <a href="https://ideyanale.bakawan-ai.com/login" class="btn">Go to Login</a>
 
     <div class="footer">
       <p><b>Note:</b> This message is auto-generated.</p>
@@ -252,6 +274,18 @@ func SendApproverNotification(ticket models.CreateTicket, toEmail string, fullNa
       font-weight: bold;
       color: #555;
     }
+    .btn {
+      display: inline-block;
+      margin-top: 20px;
+      padding: 12px 25px;
+      font-size: 16px;
+      color: #ffffff;
+      background-color: #007bff;
+      text-decoration: none;
+      border-radius: 6px;
+    }
+    .btn:hover {
+      background-color: #0056b3;
     .footer {
       margin-top: 25px;
       font-size: 12px;
@@ -279,6 +313,9 @@ func SendApproverNotification(ticket models.CreateTicket, toEmail string, fullNa
       <p><span class="label">Endorsed By:</span> %s</p>
     </div>
 
+    <!-- LOGIN BUTTON -->
+    <a href="https://ideyanale.bakawan-ai.com/login" class="btn">Go to Login</a>
+
     <div class="footer">
       <p><b>Note:</b> This message is auto-generated.</p>
       <p>Please do not reply to this email.</p>
@@ -288,7 +325,7 @@ func SendApproverNotification(ticket models.CreateTicket, toEmail string, fullNa
 </body>
 </html>
 `,
-		fullName,                 // ✅ Hello name
+		fullName, // ✅ Hello name
 		ticket.TicketID,
 		ticket.Subject,
 		ticket.Category,
@@ -362,6 +399,18 @@ func SendResolverNotification(ticket models.CreateTicket, resolverUsername strin
       font-weight: bold;
       color: #555;
     }
+    .btn {
+      display: inline-block;
+      margin-top: 20px;
+      padding: 12px 25px;
+      font-size: 16px;
+      color: #ffffff;
+      background-color: #007bff;
+      text-decoration: none;
+      border-radius: 6px;
+    }
+    .btn:hover {
+      background-color: #0056b3;
     .footer {
       margin-top: 25px;
       font-size: 12px;
@@ -395,6 +444,9 @@ func SendResolverNotification(ticket models.CreateTicket, resolverUsername strin
       <p><span class="label">Approved By:</span> %s</p>
     </div>
 
+    <!-- LOGIN BUTTON -->
+    <a href="https://ideyanale.bakawan-ai.com/login" class="btn">Go to Login</a>
+
     <div class="footer">
       <p><b>Note:</b> This message is auto-generated.</p>
       <p>Please do not reply to this email.</p>
@@ -420,74 +472,6 @@ func SendResolverNotification(ticket models.CreateTicket, resolverUsername strin
 	}
 
 	return err
-}
-
-// SendTicketResolvedEmail — called after ResolveTicket succeeds.
-// Notifies the person who originally filed the ticket that it is now resolved.
-func SendTicketResolvedEmail(ticket models.CreateTicket, submitterUsername string, toEmail string) error {
-	from := os.Getenv("EMAIL_ADDRESS")
-	password := os.Getenv("EMAIL_PASSWORD")
-	smtpHost := os.Getenv("SMTP_HOST")
-
-	// AUTH
-	auth := smtp.PlainAuth("", from, password, smtpHost)
-
-	// ENCODE SUBJECT (for emoji)
-	subject := encodeSubject("✅ Your Ticket Has Been Resolved")
-
-	// HTML BODY
-	body := fmt.Sprintf(`<!DOCTYPE html>
-<html>
-<head>
-  <meta charset="UTF-8">
-</head>
-<body>
-  <h2>Ticket Resolved Successfully</h2>
-  <p>Hello %s,</p>
-  <p>Your ticket has been resolved.</p>
-
-  <div>
-    <p><b>Ticket ID:</b> %s</p>
-    <p><b>Subject:</b> %s</p>
-    <p><b>Category:</b> %s</p>
-    <p><b>Priority:</b> %s</p>
-    <p><b>Resolved By:</b> %s</p>
-  </div>
-
-  <br/>
-  <p style="font-size:12px;color:#888;">
-    This is an automated email. Do not reply.
-  </p>
-</body>
-</html>`,
-		submitterUsername,
-		ticket.TicketID,
-		ticket.Subject,
-		ticket.Category,
-		ticket.Priority,
-		ticket.Assignee,
-	)
-
-	// FULL MESSAGE WITH HEADERS
-	msg := []byte(
-		"From: " + from + "\r\n" +
-			"To: " + toEmail + "\r\n" +
-			"Subject: " + subject + "\r\n" +
-			"MIME-Version: 1.0\r\n" +
-			"Content-Type: text/html; charset=\"UTF-8\"\r\n" +
-			"Content-Transfer-Encoding: 8bit\r\n\r\n" +
-			body,
-	)
-
-	// SEND EMAIL
-	err := smtp.SendMail(smtpHost+":587", auth, from, []string{toEmail}, msg)
-	if err != nil {
-		log.Println("Failed to send resolved email:", err)
-		return fmt.Errorf("email send failed: %w", err)
-	}
-  log.Println("✅ Email sent successfully to:", toEmail)
-
-	return nil
 }
 
 func encodeSubject(subject string) string {

@@ -726,7 +726,7 @@ func ResolveTicket(c *fiber.Ctx) error {
 	} else if submitter.Email != "" {
 		log.Println("📧 Sending resolved email to:", submitter.Email)
 		go func(t models.CreateTicket, username, email string) {
-			if err := services.SendTicketResolvedEmail(t, username, email); err != nil {
+			if err := services.SendResolverNotification(t, username, email); err != nil {
 				log.Println("❌ Failed to send resolved email:", err)
 			} else {
 				log.Println("✅ Email sent to:", email)
