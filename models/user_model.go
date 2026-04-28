@@ -26,7 +26,7 @@ type Category struct {
 	CreatedBy  string    `json:"created_by"`
 	CreatedAt  time.Time `json:"created_at"`
 
-	SubCategories []SubCategory `gorm:"foreignKey:CategoryID" json:"subcategories"`
+	SubCategories []SubCategory `gorm:"foreignKey:CategoryID;constraint:OnDelete:CASCADE" json:"subcategories"`
 }
 
 func (Category) TableName() string {

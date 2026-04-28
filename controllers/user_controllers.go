@@ -3,7 +3,6 @@ package controllers
 import (
 	"fmt"
 	"log"
-	"strings"
 	"ticketing-be-dev/middleware"
 	"ticketing-be-dev/models"
 	"ticketing-be-dev/models/response"
@@ -763,121 +762,117 @@ func humanDuration(d time.Duration) string {
 	return fmt.Sprintf("%02dm %02ds", minutes, seconds)
 }
 
-func AddCategoryWithSubcategories(c *fiber.Ctx) error {
-	// ── Get user from JWT ─────────────────────────────
-	userID, err := middleware.GetUserIDFromJWT(c)
-	if err != nil {
-		return c.Status(fiber.StatusUnauthorized).JSON(response.ResponseModel{
-			RetCode: "401",
-			Message: "Unauthorized",
-		})
-	}
-
-	var user models.UserAccount
-	if err := middleware.DBConn.First(&user, userID).Error; err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(response.ResponseModel{
-			RetCode: "500",
-			Message: "Failed to fetch user",
-		})
-	}
-
-	// ── Admin only ────────────────────────────────────
-	if user.Role != "admin" {
-		return c.Status(fiber.StatusForbidden).JSON(response.ResponseModel{
-			RetCode: "403",
-			Message: "Only admin can add category",
-		})
-	}
-
-	// ── Request body ──────────────────────────────────
-	var input struct {
-		Name          string `json:"name"`
-		SubCategories []struct {
-			Name        string `json:"name"`
-			Description string `json:"description"`
-		} `json:"subcategories"`
-	}
+func AddCategory(c *fiber.Ctx) error {
+	var input models.Category
 
 	if err := c.BodyParser(&input); err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(response.ResponseModel{
+		return c.Status(400).JSON(response.ResponseModel{
 			RetCode: "400",
 			Message: "Invalid request body",
 		})
 	}
 
 	if input.Name == "" {
-		return c.Status(fiber.StatusBadRequest).JSON(response.ResponseModel{
+		return c.Status(400).JSON(response.ResponseModel{
 			RetCode: "400",
 			Message: "Category name is required",
 		})
 	}
 
-	// ── Start transaction ─────────────────────────────
-	tx := middleware.DBConn.Begin()
+	input.CreatedAt = time.Now()
 
+	if err := middleware.DBConn.Create(&input).Error; err != nil {
+		return c.Status(500).JSON(response.ResponseModel{
+			RetCode: "500",
+			Message: "Failed to create category (maybe duplicate name)",
+		})
+	}
+
+	return c.Status(201).JSON(response.ResponseModel{
+		RetCode: "201",
+		Message: "Category created successfully",
+		Data:    input,
+	})
+}
+
+func AddSubCategory(c *fiber.Ctx) error {
+	var input models.SubCategory
+
+	if err := c.BodyParser(&input); err != nil {
+		return c.Status(400).JSON(response.ResponseModel{
+			RetCode: "400",
+			Message: "Invalid request body",
+		})
+	}
+
+	if input.Name == "" || input.CategoryID == 0 {
+		return c.Status(400).JSON(response.ResponseModel{
+			RetCode: "400",
+			Message: "CategoryID and name are required",
+		})
+	}
+
+	// ✅ Check if category exists
 	var category models.Category
-
-	// ── CHECK IF CATEGORY EXISTS ──────────────────────
-	err = tx.Where("LOWER(name) = LOWER(?)", input.Name).First(&category).Error
-
-	if err != nil {
-		// NOT FOUND → create new
-		category = models.Category{
-			Name:      input.Name,
-			CreatedBy: user.Username,
-		}
-
-		if err := tx.Create(&category).Error; err != nil {
-			tx.Rollback()
-			return c.Status(500).JSON(response.ResponseModel{
-				RetCode: "500",
-				Message: "Failed to create category",
-			})
-		}
+	if err := middleware.DBConn.First(&category, input.CategoryID).Error; err != nil {
+		return c.Status(404).JSON(response.ResponseModel{
+			RetCode: "404",
+			Message: "Category not found",
+		})
 	}
 
-	// ── CREATE SUBCATEGORIES (NO DUPLICATES) ──────────
-	for _, sub := range input.SubCategories {
-		subName := strings.TrimSpace(sub.Name)
-		if subName == "" {
-			continue
-		}
+	input.CreatedAt = time.Now()
 
-		var existing models.SubCategory
-
-		err := tx.Where(
-			"category_id = ? AND LOWER(name) = LOWER(?)",
-			category.CategoryID,
-			subName,
-		).First(&existing).Error
-
-		if err == nil {
-			// already exists → skip
-			continue
-		}
-
-		subCategory := models.SubCategory{
-			CategoryID:  category.CategoryID,
-			Name:        subName,
-			Description: sub.Description,
-			CreatedBy:   user.Username,
-		}
-
-		if err := tx.Create(&subCategory).Error; err != nil {
-			tx.Rollback()
-			return c.Status(500).JSON(response.ResponseModel{
-				RetCode: "500",
-				Message: "Failed to create subcategory",
-			})
-		}
+	if err := middleware.DBConn.Create(&input).Error; err != nil {
+		return c.Status(500).JSON(response.ResponseModel{
+			RetCode: "500",
+			Message: "Failed to create subcategory",
+		})
 	}
 
-	tx.Commit()
+	return c.Status(201).JSON(response.ResponseModel{
+		RetCode: "201",
+		Message: "Subcategory created successfully",
+		Data:    input,
+	})
+}
 
-	return c.Status(fiber.StatusOK).JSON(response.ResponseModel{
+func UpdateSubCategoryDescription(c *fiber.Ctx) error {
+	id := c.Params("id")
+
+	var input struct {
+		Description string `json:"description"`
+	}
+
+	if err := c.BodyParser(&input); err != nil {
+		return c.Status(400).JSON(response.ResponseModel{
+			RetCode: "400",
+			Message: "Invalid request body",
+		})
+	}
+
+	var subcategory models.SubCategory
+
+	if err := middleware.DBConn.First(&subcategory, id).Error; err != nil {
+		return c.Status(404).JSON(response.ResponseModel{
+			RetCode: "404",
+			Message: "Subcategory not found",
+		})
+	}
+
+	subcategory.Description = input.Description
+
+	if err := middleware.DBConn.Save(&subcategory).Error; err != nil {
+		return c.Status(500).JSON(response.ResponseModel{
+			RetCode: "500",
+			Message: "Failed to update description",
+		})
+	}
+
+	return c.Status(200).JSON(response.ResponseModel{
 		RetCode: "200",
-		Message: "Category and subcategories saved successfully",
-		Data:    category,
+		Message: "Description updated successfully",
+		Data:    subcategory,
 	})
 }
 
@@ -894,20 +889,46 @@ func GetCategories(c *fiber.Ctx) error {
 		})
 	}
 
-	return c.Status(200).JSON(categories)
+	return c.Status(200).JSON(response.ResponseModel{
+		RetCode: "200",
+		Message: "Categories fetched successfully",
+		Data:    categories,
+	})
 }
 
-func UpdateCategory(c *fiber.Ctx) error {
-	id := c.Params("id")
+func GetSubCategoriesByCategory(c *fiber.Ctx) error {
+	categoryID := c.Params("id")
 
+	// ✅ Check if category exists
 	var category models.Category
-
-	if err := middleware.DBConn.First(&category, id).Error; err != nil {
+	if err := middleware.DBConn.First(&category, categoryID).Error; err != nil {
 		return c.Status(404).JSON(response.ResponseModel{
 			RetCode: "404",
 			Message: "Category not found",
 		})
 	}
+
+	var subcategories []models.SubCategory
+
+	if err := middleware.DBConn.
+		Where("category_id = ?", categoryID).
+		Find(&subcategories).Error; err != nil {
+
+		return c.Status(500).JSON(response.ResponseModel{
+			RetCode: "500",
+			Message: "Failed to fetch subcategories",
+		})
+	}
+
+	return c.Status(200).JSON(response.ResponseModel{
+		RetCode: "200",
+		Message: "Subcategories fetched successfully",
+		Data:    subcategories,
+	})
+}
+
+func UpdateCategoryName(c *fiber.Ctx) error {
+	id := c.Params("id")
 
 	var input struct {
 		Name string `json:"name"`
@@ -916,7 +937,7 @@ func UpdateCategory(c *fiber.Ctx) error {
 	if err := c.BodyParser(&input); err != nil {
 		return c.Status(400).JSON(response.ResponseModel{
 			RetCode: "400",
-			Message: "Invalid request",
+			Message: "Invalid request body",
 		})
 	}
 
@@ -924,6 +945,28 @@ func UpdateCategory(c *fiber.Ctx) error {
 		return c.Status(400).JSON(response.ResponseModel{
 			RetCode: "400",
 			Message: "Name is required",
+		})
+	}
+
+	var category models.Category
+
+	// ✅ Check if exists
+	if err := middleware.DBConn.First(&category, id).Error; err != nil {
+		return c.Status(404).JSON(response.ResponseModel{
+			RetCode: "404",
+			Message: "Category not found",
+		})
+	}
+
+	// ✅ Optional: check duplicate
+	var existing models.Category
+	if err := middleware.DBConn.
+		Where("name = ? AND category_id != ?", input.Name, id).
+		First(&existing).Error; err == nil {
+
+		return c.Status(400).JSON(response.ResponseModel{
+			RetCode: "400",
+			Message: "Category name already exists",
 		})
 	}
 
@@ -936,56 +979,122 @@ func UpdateCategory(c *fiber.Ctx) error {
 		})
 	}
 
-	return c.JSON(response.ResponseModel{
+	return c.Status(200).JSON(response.ResponseModel{
 		RetCode: "200",
 		Message: "Category updated successfully",
 		Data:    category,
 	})
 }
 
-func DeleteCategory(c *fiber.Ctx) error {
+func UpdateSubCategoryName(c *fiber.Ctx) error {
 	id := c.Params("id")
 
-	tx := middleware.DBConn.Begin()
+	var input struct {
+		Name string `json:"name"`
+	}
 
-	// delete subcategories first
-	if err := tx.Where("category_id = ?", id).
-		Delete(&models.SubCategory{}).Error; err != nil {
-		tx.Rollback()
-		return c.Status(500).JSON(response.ResponseModel{
-			RetCode: "500",
-			Message: "Failed to delete subcategories",
+	if err := c.BodyParser(&input); err != nil {
+		return c.Status(400).JSON(response.ResponseModel{
+			RetCode: "400",
+			Message: "Invalid request body",
 		})
 	}
 
-	// delete category
-	if err := tx.Delete(&models.Category{}, id).Error; err != nil {
-		tx.Rollback()
+	if input.Name == "" {
+		return c.Status(400).JSON(response.ResponseModel{
+			RetCode: "400",
+			Message: "Name is required",
+		})
+	}
+
+	var sub models.SubCategory
+
+	// ✅ Check if exists
+	if err := middleware.DBConn.First(&sub, id).Error; err != nil {
+		return c.Status(404).JSON(response.ResponseModel{
+			RetCode: "404",
+			Message: "Subcategory not found",
+		})
+	}
+
+	// ✅ Prevent duplicate in same category
+	var existing models.SubCategory
+	if err := middleware.DBConn.
+		Where("name = ? AND category_id = ? AND sub_category_id != ?",
+			input.Name, sub.CategoryID, id).
+		First(&existing).Error; err == nil {
+
+		return c.Status(400).JSON(response.ResponseModel{
+			RetCode: "400",
+			Message: "Subcategory name already exists in this category",
+		})
+	}
+
+	sub.Name = input.Name
+
+	if err := middleware.DBConn.Save(&sub).Error; err != nil {
+		return c.Status(500).JSON(response.ResponseModel{
+			RetCode: "500",
+			Message: "Failed to update subcategory",
+		})
+	}
+
+	return c.Status(200).JSON(response.ResponseModel{
+		RetCode: "200",
+		Message: "Subcategory name updated successfully",
+		Data:    sub,
+	})
+}
+
+func DeleteCategory(c *fiber.Ctx) error {
+	id := c.Params("id")
+
+	var category models.Category
+
+	// ✅ Check if exists
+	if err := middleware.DBConn.First(&category, id).Error; err != nil {
+		return c.Status(404).JSON(response.ResponseModel{
+			RetCode: "404",
+			Message: "Category not found",
+		})
+	}
+
+	// ✅ Delete (cascade will handle subcategories)
+	if err := middleware.DBConn.Delete(&category).Error; err != nil {
 		return c.Status(500).JSON(response.ResponseModel{
 			RetCode: "500",
 			Message: "Failed to delete category",
 		})
 	}
 
-	tx.Commit()
-
-	return c.JSON(response.ResponseModel{
+	return c.Status(200).JSON(response.ResponseModel{
 		RetCode: "200",
-		Message: "Category deleted successfully",
+		Message: "Category and its subcategories deleted successfully",
 	})
 }
 
-func DeleteSubCategories(c *fiber.Ctx) error {
+func DeleteSubCategory(c *fiber.Ctx) error {
 	id := c.Params("id")
 
-	if err := middleware.DBConn.Delete(&models.SubCategory{}, id).Error; err != nil {
+	var subcategory models.SubCategory
+
+	// ✅ Check if exists
+	if err := middleware.DBConn.First(&subcategory, id).Error; err != nil {
+		return c.Status(404).JSON(response.ResponseModel{
+			RetCode: "404",
+			Message: "Subcategory not found",
+		})
+	}
+
+	// ✅ Delete
+	if err := middleware.DBConn.Delete(&subcategory).Error; err != nil {
 		return c.Status(500).JSON(response.ResponseModel{
 			RetCode: "500",
 			Message: "Failed to delete subcategory",
 		})
 	}
 
-	return c.JSON(response.ResponseModel{
+	return c.Status(200).JSON(response.ResponseModel{
 		RetCode: "200",
 		Message: "Subcategory deleted successfully",
 	})
