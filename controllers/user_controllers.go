@@ -791,8 +791,11 @@ func AddCategoryWithSubcategories(c *fiber.Ctx) error {
 
 	// ── Request body ──────────────────────────────────
 	var input struct {
-		Name          string   `json:"name"`
-		SubCategories []string `json:"subcategories"`
+		Name          string `json:"name"`
+		SubCategories []struct {
+			Name        string `json:"name"`
+			Description string `json:"description"`
+		} `json:"subcategories"`
 	}
 
 	if err := c.BodyParser(&input); err != nil {
@@ -835,15 +838,18 @@ func AddCategoryWithSubcategories(c *fiber.Ctx) error {
 
 	// ── CREATE SUBCATEGORIES (NO DUPLICATES) ──────────
 	for _, sub := range input.SubCategories {
-		sub = strings.TrimSpace(sub)
-		if sub == "" {
+		subName := strings.TrimSpace(sub.Name)
+		if subName == "" {
 			continue
 		}
 
 		var existing models.SubCategory
 
-		err := tx.Where("category_id = ? AND LOWER(name) = LOWER(?)",
-			category.CategoryID, sub).First(&existing).Error
+		err := tx.Where(
+			"category_id = ? AND LOWER(name) = LOWER(?)",
+			category.CategoryID,
+			subName,
+		).First(&existing).Error
 
 		if err == nil {
 			// already exists → skip
@@ -851,9 +857,10 @@ func AddCategoryWithSubcategories(c *fiber.Ctx) error {
 		}
 
 		subCategory := models.SubCategory{
-			CategoryID: category.CategoryID,
-			Name:       sub,
-			CreatedBy:  user.Username,
+			CategoryID:  category.CategoryID,
+			Name:        subName,
+			Description: sub.Description,
+			CreatedBy:   user.Username,
 		}
 
 		if err := tx.Create(&subCategory).Error; err != nil {
