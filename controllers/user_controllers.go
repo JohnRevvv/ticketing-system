@@ -899,6 +899,13 @@ func GetCategories(c *fiber.Ctx) error {
 func GetSubCategoriesByCategory(c *fiber.Ctx) error {
 	categoryID := c.Params("id")
 
+	if categoryID == "" {
+		return c.Status(400).JSON(response.ResponseModel{
+			RetCode: "400",
+			Message: "Category ID is required",
+		})
+	}
+
 	// ✅ Check if category exists
 	var category models.Category
 	if err := middleware.DBConn.First(&category, categoryID).Error; err != nil {
