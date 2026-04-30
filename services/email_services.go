@@ -364,6 +364,7 @@ func SendResolverNotification(ticket models.CreateTicket, resolverUsername strin
 <!DOCTYPE html>
 <html>
 <head>
+  <meta charset="UTF-8">
   <style>
     body {
       font-family: Arial, sans-serif;
@@ -377,40 +378,51 @@ func SendResolverNotification(ticket models.CreateTicket, resolverUsername strin
       background: #ffffff;
       padding: 25px;
       border-radius: 10px;
-      box-shadow: 0 4px 10px rgba(0,0,0,0.08);
+      border: 1px solid #eaeaea;
     }
     .header {
       text-align: center;
-      padding-bottom: 10px;
       border-bottom: 1px solid #eee;
+      padding-bottom: 15px;
     }
     .header h2 {
-      color: #2c3e50;
       margin: 0;
+      color: #2c3e50;
+    }
+    .header p {
+      color: #777;
+      font-size: 14px;
     }
     .ticket-box {
       background: #f9fafb;
       padding: 15px;
       margin-top: 20px;
       border-radius: 8px;
-      border-left: 5px solid #27ae60;
+      border-left: 5px solid #007bff;
     }
     .label {
       font-weight: bold;
+      color: #333;
+    }
+    .value {
       color: #555;
     }
+    .priority {
+      font-weight: bold;
+      color: #e74c3c;
+    }
     .btn {
-      display: inline-block;
-      margin-top: 20px;
-      padding: 12px 25px;
+      display: block;
+      text-align: center;
+      margin: 25px auto 10px;
+      padding: 12px;
       font-size: 16px;
       color: #ffffff;
       background-color: #007bff;
       text-decoration: none;
       border-radius: 6px;
+      width: 200px;
     }
-    .btn:hover {
-      background-color: #0056b3;
     .footer {
       margin-top: 25px;
       font-size: 12px;
@@ -419,11 +431,6 @@ func SendResolverNotification(ticket models.CreateTicket, resolverUsername strin
       border-top: 1px solid #eee;
       padding-top: 15px;
     }
-    .note {
-      font-size: 12px;
-      color: #999;
-      margin-top: 5px;
-    }
   </style>
 </head>
 <body>
@@ -431,26 +438,24 @@ func SendResolverNotification(ticket models.CreateTicket, resolverUsername strin
   <div class="container">
 
     <div class="header">
-      <h2>Ticket Ready for Resolution</h2>
-      <p>A new ticket is now assigned for action.</p>
+      <h2>🔔 Ticket Ready for Resolution</h2>
+      <p>A new ticket has been assigned to you.</p>
     </div>
 
     <div class="ticket-box">
-      <p><span class="label">Hello:</span> %s</p>
-      <p><span class="label">Ticket ID:</span> %s</p>
-      <p><span class="label">Subject:</span> %s</p>
-      <p><span class="label">Category:</span> %s</p>
-      <p><span class="label">Priority:</span> %s</p>
-      <p><span class="label">Approved By:</span> %s</p>
+      <p><span class="label">Hello:</span> <span class="value">%s</span></p>
+      <p><span class="label">Ticket ID:</span> <span class="value">%s</span></p>
+      <p><span class="label">Subject:</span> <span class="value">%s</span></p>
+      <p><span class="label">Category:</span> <span class="value">%s</span></p>
+      <p><span class="label">Priority:</span> <span class="priority">%s</span></p>
+      <p><span class="label">Approved By:</span> <span class="value">%s</span></p>
     </div>
 
-    <!-- LOGIN BUTTON -->
-    <a href="https://ideyanale.bakawan-ai.com/login" class="btn">Go to Login</a>
+    <a href="https://idiyanale.bakawan-ai.com/login" class="btn">Open Ticket System</a>
 
     <div class="footer">
-      <p><b>Note:</b> This message is auto-generated.</p>
+      <p><b>Note:</b> This is an automated message.</p>
       <p>Please do not reply to this email.</p>
-      <div class="note">For concerns, contact your system administrator.</div>
     </div>
 
   </div>
