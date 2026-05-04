@@ -722,13 +722,13 @@ func ResolveTicket(c *fiber.Ctx) error {
 		log.Println("❌ Could not find submitter:", err)
 	} else if submitter.Email != "" {
 		log.Println("📧 Sending resolved email to:", submitter.Email)
-		go func(t models.CreateTicket, username, email string) {
-			if err := services.SendResolverNotification(t, username, email); err != nil {
+		go func(t models.CreateTicket, username, email, resolver string) {
+			if err := services.SendResolvedNotification(t, username, email, resolver); err != nil {
 				log.Println("❌ Failed to send resolved email:", err)
 			} else {
 				log.Println("✅ Email sent to:", email)
 			}
-		}(ticket, submitter.Username, submitter.Email)
+		}(ticket, submitter.Username, submitter.Email, user.Username)
 	}
 
 	// ✅ RESPONSE

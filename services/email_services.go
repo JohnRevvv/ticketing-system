@@ -157,15 +157,17 @@ func SendEndorserNotification(ticket models.CreateTicket, toEmail string) error 
       color: #222;
     }
     .btn {
-      display: inline-block;
-      margin-top: 20px;
-      padding: 12px 25px;
-      font-size: 16px;
-      color: #ffffff;
-      background-color: #007bff;
-      text-decoration: none;
-      border-radius: 6px;
-    }
+  display: block;
+  text-align: center;
+  margin: 25px auto 10px;
+  padding: 12px;
+  font-size: 16px;
+  color: #ffffff !important;
+  background-color: #007bff;
+  text-decoration: none !important;
+  border-radius: 6px;
+  width: 200px;
+}
     .btn:hover {
       background-color: #0056b3;
     }
@@ -201,7 +203,7 @@ func SendEndorserNotification(ticket models.CreateTicket, toEmail string) error 
     </div>
 
     <!-- LOGIN BUTTON -->
-    <a href="https://ideyanale.bakawan-ai.com/login" class="btn">Go to Login</a>
+    <a href="https://idiyanale.bakawan-ai.com/login" class="btn">Go to Login</a>
 
     <div class="footer">
       <p><b>Note:</b> This message is auto-generated.</p>
@@ -275,15 +277,17 @@ func SendApproverNotification(ticket models.CreateTicket, toEmail string, fullNa
       color: #555;
     }
     .btn {
-      display: inline-block;
-      margin-top: 20px;
-      padding: 12px 25px;
-      font-size: 16px;
-      color: #ffffff;
-      background-color: #007bff;
-      text-decoration: none;
-      border-radius: 6px;
-    }
+  display: block;
+  text-align: center;
+  margin: 25px auto 10px;
+  padding: 12px;
+  font-size: 16px;
+  color: #ffffff !important;
+  background-color: #007bff;
+  text-decoration: none !important;
+  border-radius: 6px;
+  width: 200px;
+}
     .btn:hover {
       background-color: #0056b3;
     .footer {
@@ -314,7 +318,7 @@ func SendApproverNotification(ticket models.CreateTicket, toEmail string, fullNa
     </div>
 
     <!-- LOGIN BUTTON -->
-    <a href="https://ideyanale.bakawan-ai.com/login" class="btn">Go to Login</a>
+    <a href="https://idiyanale.bakawan-ai.com/login" class="btn">Go to Login</a>
 
     <div class="footer">
       <p><b>Note:</b> This message is auto-generated.</p>
@@ -412,17 +416,17 @@ func SendResolverNotification(ticket models.CreateTicket, resolverUsername strin
       color: #e74c3c;
     }
     .btn {
-      display: block;
-      text-align: center;
-      margin: 25px auto 10px;
-      padding: 12px;
-      font-size: 16px;
-      color: #ffffff;
-      background-color: #007bff;
-      text-decoration: none;
-      border-radius: 6px;
-      width: 200px;
-    }
+  display: block;
+  text-align: center;
+  margin: 25px auto 10px;
+  padding: 12px;
+  font-size: 16px;
+  color: #ffffff !important;
+  background-color: #007bff;
+  text-decoration: none !important;
+  border-radius: 6px;
+  width: 200px;
+}
     .footer {
       margin-top: 25px;
       font-size: 12px;
@@ -474,6 +478,135 @@ func SendResolverNotification(ticket models.CreateTicket, resolverUsername strin
 	err := smtp.SendMail(smtpHost+":587", auth, from, []string{toEmail}, msg)
 	if err != nil {
 		log.Println("Failed to send resolver email:", err)
+	}
+
+	return err
+}
+
+func SendResolvedNotification(ticket models.CreateTicket, submitterName string, toEmail string, resolverName string,) error {
+	from := os.Getenv("EMAIL_ADDRESS")
+	password := os.Getenv("EMAIL_PASSWORD")
+	smtpHost := os.Getenv("SMTP_HOST")
+
+	auth := smtp.PlainAuth("", from, password, smtpHost)
+
+	subject := "✅ Your Ticket Has Been Resolved"
+
+	body := fmt.Sprintf(`
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background-color: #f4f6f8;
+      margin: 0;
+      padding: 20px;
+    }
+    .container {
+      max-width: 600px;
+      margin: auto;
+      background: #ffffff;
+      padding: 25px;
+      border-radius: 10px;
+      border: 1px solid #eaeaea;
+    }
+    .header {
+      text-align: center;
+      border-bottom: 1px solid #eee;
+      padding-bottom: 15px;
+    }
+    .header h2 {
+      margin: 0;
+      color: #2c3e50;
+    }
+    .header p {
+      color: #777;
+      font-size: 14px;
+    }
+    .ticket-box {
+      background: #f9fafb;
+      padding: 15px;
+      margin-top: 20px;
+      border-radius: 8px;
+      border-left: 5px solid #28a745;
+    }
+    .label {
+      font-weight: bold;
+      color: #333;
+    }
+    .value {
+      color: #555;
+    }
+    .status {
+      font-weight: bold;
+      color: #28a745;
+    }
+    .btn {
+      display: block;
+      text-align: center;
+      margin: 25px auto 10px;
+      padding: 12px;
+      font-size: 16px;
+      color: #ffffff !important;
+      background-color: #28a745;
+      text-decoration: none !important;
+      border-radius: 6px;
+      width: 220px;
+    }
+    .footer {
+      margin-top: 25px;
+      font-size: 12px;
+      text-align: center;
+      color: #888;
+      border-top: 1px solid #eee;
+      padding-top: 15px;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="container">
+
+    <div class="header">
+      <h2>✅ Ticket Resolved</h2>
+      <p>Your request has been successfully completed.</p>
+    </div>
+
+    <div class="ticket-box">
+      <p><span class="label">Hello:</span> <span class="value">%s</span></p>
+      <p><span class="label">Ticket ID:</span> <span class="value">%s</span></p>
+      <p><span class="label">Subject:</span> <span class="value">%s</span></p>
+      <p><span class="label">Category:</span> <span class="value">%s</span></p>
+      <p><span class="label">Priority:</span> <span class="value">%s</span></p>
+      <p><span class="label">Resolved By:</span> <span class="value">%s</span></p>
+      <p><span class="label">Status:</span> <span class="status">Resolved</span></p>
+    </div>
+
+    <a href="https://idiyanale.bakawan-ai.com/login" class="btn">View Ticket</a>
+
+    <div class="footer">
+      <p><b>Note:</b> This is an automated message.</p>
+      <p>If the issue persists, please create a new ticket.</p>
+    </div>
+
+  </div>
+
+</body>
+</html>
+`, submitterName, ticket.TicketID, ticket.Subject, ticket.Category, ticket.Priority, resolverName)
+
+	msg := []byte(
+		"Subject: " + subject + "\r\n" +
+			"MIME-Version: 1.0\r\n" +
+			"Content-Type: text/html; charset=\"UTF-8\"\r\n\r\n" +
+			body,
+	)
+
+	err := smtp.SendMail(smtpHost+":587", auth, from, []string{toEmail}, msg)
+	if err != nil {
+		log.Println("Failed to send resolved email:", err)
 	}
 
 	return err
