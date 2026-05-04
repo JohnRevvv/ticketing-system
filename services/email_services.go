@@ -352,8 +352,6 @@ func SendApproverNotification(ticket models.CreateTicket, toEmail string, fullNa
 	return err
 }
 
-// SendResolverNotification — called after ApproveTicket succeeds.
-// Sent to ALL resolvers. resolverUsername passed separately because
 // ticket.Assignee is still empty at approval time.
 func SendResolverNotification(ticket models.CreateTicket, resolverUsername string, toEmail string) error {
 	from := os.Getenv("EMAIL_ADDRESS")
