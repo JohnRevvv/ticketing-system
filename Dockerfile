@@ -3,6 +3,7 @@ FROM golang:1.22-alpine
 WORKDIR /idiyanale-be
 
 COPY go.mod go.sum ./
+
 RUN go mod download
 
 COPY . .
