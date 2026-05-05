@@ -481,7 +481,6 @@ func GetUserTickets(c *fiber.Ctx) error {
 func GetTicketByID(c *fiber.Ctx) error {
 	ticketID := c.Params("id")
 
-	// 🔹 Get ticket
 	var ticket models.CreateTicket
 	if err := middleware.DBConn.
 		Where("ticket_id = ?", ticketID).
@@ -493,7 +492,6 @@ func GetTicketByID(c *fiber.Ctx) error {
 		})
 	}
 
-	// 🔹 Get attachments
 	var attachments []models.TicketAttachment
 	if err := middleware.DBConn.
 		Where("ticket_id = ?", ticketID).
@@ -505,15 +503,21 @@ func GetTicketByID(c *fiber.Ctx) error {
 		})
 	}
 
-	// 🔹 Convert file paths to URL (for frontend)
-	baseURL := "http://localhost:8080/uploads"
-
-	for i := range attachments {
-		cleanPath := strings.TrimPrefix(attachments[i].FilePath, "uploads/")
-		attachments[i].FilePath = fmt.Sprintf("%s/%s", baseURL, cleanPath)
+	// ✅ Use ENV instead of hardcoded URL
+	baseURL := os.Getenv("BASE_URL")
+	if baseURL == "" {
+		baseURL = "http://localhost:8080" // fallback
 	}
 
-	// 🔹 Response
+	// ✅ Convert to full URL
+	for i := range attachments {
+		attachments[i].FilePath = fmt.Sprintf(
+			"%s/uploads/%s",
+			baseURL,
+			attachments[i].FilePath, // already "attachments/filename"
+		)
+	}
+
 	return c.Status(fiber.StatusOK).JSON(response.ResponseModel{
 		RetCode: "200",
 		Message: "Ticket fetched successfully",
@@ -525,12 +529,10 @@ func GetTicketByID(c *fiber.Ctx) error {
 }
 
 func ViewAttachment(c *fiber.Ctx) error {
-	// Get attachment ID or filename from params
 	attachmentID := c.Params("id")
 
 	var attachment models.TicketAttachment
 
-	// Find attachment in DB
 	if err := middleware.DBConn.
 		Where("id = ?", attachmentID).
 		First(&attachment).Error; err != nil {
@@ -541,21 +543,31 @@ func ViewAttachment(c *fiber.Ctx) error {
 		})
 	}
 
-	// Check if file exists
-	if _, err := os.Stat(attachment.FilePath); os.IsNotExist(err) {
+	// ✅ Get upload base path
+	baseUploadPath := os.Getenv("UPLOAD_PATH")
+	if baseUploadPath == "" {
+		baseUploadPath = "/var/www/ticketing/uploads/attachments"
+	}
+
+	// ✅ Build FULL system path
+	fullPath := fmt.Sprintf("%s/%s",
+		baseUploadPath,
+		strings.TrimPrefix(attachment.FilePath, "attachments/"),
+	)
+
+	// 🔍 Check file exists
+	if _, err := os.Stat(fullPath); os.IsNotExist(err) {
 		return c.Status(fiber.StatusNotFound).JSON(response.ResponseModel{
 			RetCode: "404",
 			Message: "File not found on server",
 		})
 	}
 
-	// Option 1: Display in browser (for images, pdf, etc.)
-	return c.SendFile(attachment.FilePath)
+	// ✅ Serve file
+	return c.SendFile(fullPath)
 
-	// Option 2 (force download instead):
-	/*
-		return c.Download(attachment.FilePath, attachment.FileName)
-	*/
+	// Optional:
+	// return c.Download(fullPath, attachment.FileName)
 }
 
 func ExportTicketsCSV(c *fiber.Ctx) error {
