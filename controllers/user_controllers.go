@@ -781,12 +781,21 @@ func AddCategory(c *fiber.Ctx) error {
 		})
 	}
 
+	// ✅ Check if category already exists
+	var existing models.Category
+	if err := middleware.DBConn.Where("name = ?", input.Name).First(&existing).Error; err == nil {
+		return c.Status(409).JSON(response.ResponseModel{
+			RetCode: "409",
+			Message: "Category already exists",
+		})
+	}
+
 	input.CreatedAt = time.Now()
 
 	if err := middleware.DBConn.Create(&input).Error; err != nil {
 		return c.Status(500).JSON(response.ResponseModel{
 			RetCode: "500",
-			Message: "Failed to create category (maybe duplicate name)",
+			Message: "Failed to create category",
 		})
 	}
 
@@ -814,12 +823,23 @@ func AddSubCategory(c *fiber.Ctx) error {
 		})
 	}
 
-	// ✅ Check if category exists
+	// ✅ Check category exists
 	var category models.Category
 	if err := middleware.DBConn.First(&category, input.CategoryID).Error; err != nil {
 		return c.Status(404).JSON(response.ResponseModel{
 			RetCode: "404",
 			Message: "Category not found",
+		})
+	}
+
+	// ✅ Check duplicate subcategory under same category
+	var existing models.SubCategory
+	if err := middleware.DBConn.
+		Where("name = ? AND category_id = ?", input.Name, input.CategoryID).
+		First(&existing).Error; err == nil {
+		return c.Status(409).JSON(response.ResponseModel{
+			RetCode: "409",
+			Message: "Subcategory already exists under this category",
 		})
 	}
 
