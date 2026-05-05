@@ -17,7 +17,7 @@ services:
     container_name: idiyanale-postgres
     environment:
       POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: password
+      POSTGRES_PASSWORD: B@kawanMR11T2024
       POSTGRES_DB: ticketing_db
     ports:
       - "5432:5432"
