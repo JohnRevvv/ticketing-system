@@ -11,7 +11,6 @@ import (
 )
 
 func AppRoutes(app *fiber.App) {
-	api := app.Group("/api")
 
 	// ── Static file serving ───────────────────────────────────────────────────
 	// Custom handler: URL-decodes the path before serving,
@@ -37,16 +36,18 @@ func AppRoutes(app *fiber.App) {
 	// ==============================
 	// Public routes (no token needed)
 	// ==============================
-	api.Post("/user/register", controllers.Register)
-	api.Post("/user/login", controllers.Login)
-	api.Post("/forgot-password", controllers.ForgotPassword)
-	api.Post("/reset-password", controllers.ResetPassword)
-	api.Post("/verify-code", controllers.VerifyCode)
+	public := app.Group("/api/public/v1")
+
+	public.Post("/login", controllers.Login)
+	public.Post("/register", controllers.Register)
+	public.Post("/forgot-password", controllers.ForgotPassword)
+	public.Post("/reset-password", controllers.ResetPassword)
+	public.Post("/verify-code", controllers.VerifyCode)
 
 	// ==============================
 	// User routes (JWT required)
 	// ==============================
-	userRoutes := api.Group("/user", middleware.JWTMiddleware())
+	userRoutes := public.Group("/user", middleware.JWTMiddleware())
 
 	// ── Ticket CRUD ───────────────────────────────────────────────────────────
 	userRoutes.Post("/ticket/create", controllers.CreateTicket)
