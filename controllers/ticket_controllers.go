@@ -129,7 +129,7 @@ func CreateTicket(c *fiber.Ctx) error {
 			attachment := models.TicketAttachment{
 				TicketID:   ticket.TicketID,
 				FileName:   cleanFileName,
-				FilePath:   filePath,
+				FilePath: fmt.Sprintf("attachments/%s", savedFileName),
 				UploadedBy: user.Username,
 			}
 
@@ -185,10 +185,9 @@ func CreateTicket(c *fiber.Ctx) error {
 func UpdateTicket(c *fiber.Ctx) error {
 	tx := middleware.DBConn.Begin()
 
-	// Get ticket ID from params
 	ticketID := c.Params("id")
 
-	// Get user from JWT
+	// 🔐 Get user
 	userID, err := middleware.GetUserIDFromJWT(c)
 	if err != nil {
 		tx.Rollback()
@@ -207,7 +206,7 @@ func UpdateTicket(c *fiber.Ctx) error {
 		})
 	}
 
-	// Get existing ticket
+	// 🔍 Get ticket
 	var ticket models.CreateTicket
 	if err := tx.Where("ticket_id = ?", ticketID).First(&ticket).Error; err != nil {
 		tx.Rollback()
@@ -217,16 +216,16 @@ func UpdateTicket(c *fiber.Ctx) error {
 		})
 	}
 
-	// 🔒 Check ownership
+	// 🔒 Ownership check
 	if ticket.Username != user.Username {
 		tx.Rollback()
 		return c.Status(fiber.StatusForbidden).JSON(response.ResponseModel{
 			RetCode: "403",
-			Message: "You are not allowed to edit this ticket",
+			Message: "Not allowed to edit this ticket",
 		})
 	}
 
-	// 🔒 Check status
+	// 🔒 Status check
 	if ticket.Status != "for endorsement" {
 		tx.Rollback()
 		return c.Status(fiber.StatusBadRequest).JSON(response.ResponseModel{
@@ -235,7 +234,7 @@ func UpdateTicket(c *fiber.Ctx) error {
 		})
 	}
 
-	// Update fields
+	// ✏️ Update fields
 	ticket.Subject = c.FormValue("subject")
 	ticket.Category = c.FormValue("category")
 	ticket.Institution = c.FormValue("institution")
@@ -246,7 +245,6 @@ func UpdateTicket(c *fiber.Ctx) error {
 	ticket.Endorser = c.FormValue("endorser")
 	ticket.Approver = c.FormValue("approver")
 
-	// Save updates
 	if err := tx.Save(&ticket).Error; err != nil {
 		tx.Rollback()
 		return c.Status(fiber.StatusInternalServerError).JSON(response.ResponseModel{
@@ -255,19 +253,27 @@ func UpdateTicket(c *fiber.Ctx) error {
 		})
 	}
 
-	// OPTIONAL: Handle new attachments (append only)
+	// 📎 Handle attachments
 	form, err := c.MultipartForm()
 	if err == nil && form.File != nil {
 		files := form.File["attachments"]
 
 		baseUploadPath := os.Getenv("UPLOAD_PATH")
 		if baseUploadPath == "" {
-			baseUploadPath = "uploads/attachments"
+			baseUploadPath = "/var/www/ticketing/uploads/attachments" // 🔥 force absolute fallback
 		}
 
-		os.MkdirAll(baseUploadPath, os.ModePerm)
+		// Ensure directory exists
+		if err := os.MkdirAll(baseUploadPath, os.ModePerm); err != nil {
+			tx.Rollback()
+			return c.Status(fiber.StatusInternalServerError).JSON(response.ResponseModel{
+				RetCode: "500",
+				Message: "Failed to create upload directory",
+			})
+		}
 
 		for _, file := range files {
+			// 📏 Size check
 			if file.Size > 5*1024*1024 {
 				tx.Rollback()
 				return c.Status(fiber.StatusBadRequest).JSON(response.ResponseModel{
@@ -276,11 +282,21 @@ func UpdateTicket(c *fiber.Ctx) error {
 				})
 			}
 
+			// 🧹 Clean filename
 			cleanFileName := sanitizeFileName(file.Filename)
-			savedFileName := fmt.Sprintf("%s_%d_%s", ticket.TicketID, time.Now().UnixNano(), cleanFileName)
-			filePath := fmt.Sprintf("%s/%s", baseUploadPath, savedFileName)
 
-			if err := c.SaveFile(file, filePath); err != nil {
+			// 🆔 Unique filename
+			savedFileName := fmt.Sprintf("%s_%d_%s",
+				ticket.TicketID,
+				time.Now().UnixNano(),
+				cleanFileName,
+			)
+
+			// 📂 Full system path (for saving)
+			fullPath := fmt.Sprintf("%s/%s", baseUploadPath, savedFileName)
+
+			// 💾 Save file
+			if err := c.SaveFile(file, fullPath); err != nil {
 				tx.Rollback()
 				return c.Status(fiber.StatusInternalServerError).JSON(response.ResponseModel{
 					RetCode: "500",
@@ -288,10 +304,13 @@ func UpdateTicket(c *fiber.Ctx) error {
 				})
 			}
 
+			// ✅ Store RELATIVE path (important)
+			relativePath := fmt.Sprintf("attachments/%s", savedFileName)
+
 			attachment := models.TicketAttachment{
 				TicketID:   ticket.TicketID,
 				FileName:   cleanFileName,
-				FilePath:   filePath,
+				FilePath:   relativePath,
 				UploadedBy: user.Username,
 			}
 
@@ -305,7 +324,7 @@ func UpdateTicket(c *fiber.Ctx) error {
 		}
 	}
 
-	// Commit
+	// ✅ Commit
 	if err := tx.Commit().Error; err != nil {
 		tx.Rollback()
 		return c.Status(fiber.StatusInternalServerError).JSON(response.ResponseModel{
@@ -414,7 +433,6 @@ func GetUserTickets(c *fiber.Ctx) error {
 		})
 	}
 
-	// ✅ If no tickets
 	if len(tickets) == 0 {
 		return c.Status(fiber.StatusOK).JSON(response.ResponseModel{
 			RetCode: "200",
@@ -423,7 +441,12 @@ func GetUserTickets(c *fiber.Ctx) error {
 		})
 	}
 
-	// ✅ Attach attachments per ticket
+	// 🔥 Base URL (change this!)
+	baseURL := os.Getenv("BASE_URL")
+	if baseURL == "" {
+		baseURL = "http://localhost:8080" // fallback
+	}
+
 	var result []TicketWithAttachments
 
 	for _, ticket := range tickets {
@@ -432,6 +455,15 @@ func GetUserTickets(c *fiber.Ctx) error {
 		middleware.DBConn.
 			Where("ticket_id = ?", ticket.TicketID).
 			Find(&attachments)
+
+		// ✅ Fix paths here
+		for i := range attachments {
+			attachments[i].FilePath = fmt.Sprintf(
+				"%s/uploads/%s",
+				baseURL,
+				attachments[i].FilePath,
+			)
+		}
 
 		result = append(result, TicketWithAttachments{
 			CreateTicket: ticket,

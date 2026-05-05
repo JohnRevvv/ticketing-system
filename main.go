@@ -44,7 +44,7 @@ func main() {
 	// Files are saved to ./upload/attachments/xxx on disk.
 	// This maps GET /uploads/* → ./upload/* so the frontend can access them.
 	// Example: http://localhost:8080/uploads/attachments/SR000003_xxx.png
-	app.Static("/uploads", "./uploads")
+	app.Static("/uploads", "/var/www/ticketing/uploads")
 
 	// Health check
 	app.Get("/", func(c *fiber.Ctx) error {
