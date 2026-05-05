@@ -4,7 +4,6 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
-
 	"ticketing-be-dev/controllers"
 	"ticketing-be-dev/middleware"
 
@@ -12,18 +11,15 @@ import (
 )
 
 func AppRoutes(app *fiber.App) {
+	api := app.Group("/api")
 
-	// =========================
-	// API VERSIONING
-	// =========================
-	api := app.Group("/api/v1")
-
-	// =========================
-	// STATIC FILES
-	// =========================
+	// ── Static file serving ───────────────────────────────────────────────────
+	// Custom handler: URL-decodes the path before serving,
+	// fixing filenames with spaces or special characters.
 	app.Get("/uploads/*", func(c *fiber.Ctx) error {
 		rawPath := c.Params("*")
 
+		// Decode %20, %C3%A2%C2%80%C2%AF, etc.
 		decoded, err := url.PathUnescape(rawPath)
 		if err != nil {
 			decoded = rawPath
@@ -32,90 +28,78 @@ func AppRoutes(app *fiber.App) {
 		filePath := filepath.Join("./uploads", decoded)
 
 		if _, err := os.Stat(filePath); os.IsNotExist(err) {
-			return c.Status(fiber.StatusNotFound).
-				SendString("File not found: " + decoded)
+			return c.Status(fiber.StatusNotFound).SendString("File not found: " + decoded)
 		}
 
 		return c.SendFile(filePath)
 	})
 
-	// =========================
-	// PUBLIC ROUTES (NO AUTH)
-	// =========================
-	auth := api.Group("/auth")
+	public := app.Group("/api/public/v1")
 
-	auth.Post("/login", controllers.Login)
-	auth.Post("/register", controllers.Register)
-	auth.Post("/forgot-password", controllers.ForgotPassword)
-	auth.Post("/reset-password", controllers.ResetPassword)
-	auth.Post("/verify-code", controllers.VerifyCode)
+	public.Get("/", func(c *fiber.Ctx) error {
+		return c.Status(200).JSON(fiber.Map{
+			"status": "ok",
+		})
+	})
 
-	// =========================
-	// PROTECTED ROUTES (JWT)
-	// =========================
-	protected := api.Group("", middleware.JWTMiddleware())
+	// ==============================
+	// Public routes (no token needed)
+	// ==============================
+	api.Post("/user/register", controllers.Register)
+	api.Post("/user/login", controllers.Login)
+	api.Post("/forgot-password", controllers.ForgotPassword)
+	api.Post("/reset-password", controllers.ResetPassword)
+	api.Post("/verify-code", controllers.VerifyCode)
 
-	// =========================
-	// USERS
-	// =========================
-	users := protected.Group("/users")
+	// ==============================
+	// User routes (JWT required)
+	// ==============================
+	userRoutes := api.Group("/user", middleware.JWTMiddleware())
 
-	users.Get("/me", controllers.GetCurrentUser)
-	users.Get("/", controllers.GetAllUsers)
-	users.Put("/:id/role", controllers.UpdateUserRoleStatus)
-	users.Put("/:id/profile", controllers.UpdateUserProfile)
+	// ── Ticket CRUD ───────────────────────────────────────────────────────────
+	userRoutes.Post("/ticket/create", controllers.CreateTicket)
+	userRoutes.Put("/ticket/update/:id", controllers.UpdateTicket)
+	userRoutes.Get("/list/my/tickets", controllers.GetUserTickets)
+	userRoutes.Get("/list/all/tickets", controllers.GetAllTickets)
 
-	// =========================
-	// TICKETS (CORE MODULE)
-	// =========================
-	tickets := protected.Group("/tickets")
+	// ── Export — MUST be before /tickets/:id to avoid param conflict ──────────
+	userRoutes.Get("/tickets/export", controllers.ExportTicketsCSV)
 
-	tickets.Post("/", controllers.CreateTicket)
-	tickets.Get("/my", controllers.GetUserTickets)
-	tickets.Get("/", controllers.GetAllTickets)
-	tickets.Get("/export", controllers.ExportTicketsCSV)
+	// ── Get ticket by ID — registered AFTER /tickets/export ──────────────────
+	userRoutes.Get("/tickets/:id", controllers.GetTicketByID)
 
-	tickets.Get("/:id", controllers.GetTicketByID)
+	// ── Ticket actions ────────────────────────────────────────────────────────
+	userRoutes.Put("/ticket/endorse/:id", controllers.EndorseTicket)
+	userRoutes.Put("/ticket/approve/:id", controllers.ApproveTicket)
+	userRoutes.Put("/ticket/grab/:id", controllers.GrabTicket)
+	userRoutes.Put("/ticket/ungrab/:id", controllers.UnGrabTicket)
+	userRoutes.Put("/ticket/resolve/:id", controllers.ResolveTicket)
+	userRoutes.Put("/ticket/cancel/:id", controllers.CancelTicket)
+	userRoutes.Patch("/ticket/hold/:id", controllers.HoldTicket)
+	userRoutes.Patch("/ticket/unhold/:id", controllers.ResumeTicket)
 
-	tickets.Put("/:id", controllers.UpdateTicket)
-	tickets.Put("/:id/endorse", controllers.EndorseTicket)
-	tickets.Put("/:id/approve", controllers.ApproveTicket)
-	tickets.Put("/:id/grab", controllers.GrabTicket)
-	tickets.Put("/:id/ungrab", controllers.UnGrabTicket)
-	tickets.Put("/:id/resolve", controllers.ResolveTicket)
-	tickets.Put("/:id/cancel", controllers.CancelTicket)
-	tickets.Patch("/:id/hold", controllers.HoldTicket)
-	tickets.Patch("/:id/unhold", controllers.ResumeTicket)
+	// ── Users ─────────────────────────────────────────────────────────────────
+	userRoutes.Get("/list/all/users", controllers.GetAllUsers)
+	userRoutes.Get("/get/me", controllers.GetCurrentUser)
+	userRoutes.Put("/update/user/:id", controllers.UpdateUserRoleStatus)
+	userRoutes.Put("/update/profile/:id", controllers.UpdateUserProfile)
 
-	// =========================
-	// TICKET REMARKS
-	// =========================
-	remarks := tickets.Group("/:id/remarks")
+	// ── Attachments ───────────────────────────────────────────────────────────
+	userRoutes.Get("/attachments/:id", controllers.ViewAttachment)
 
-	remarks.Post("/", controllers.CreateTicketRemark)
-	remarks.Get("/", controllers.GetRemarksByTicket)
+	// ── Remarks ───────────────────────────────────────────────────────────────
+	userRoutes.Post("/ticket/remark", controllers.CreateTicketRemark)
+	userRoutes.Get("/ticket/:ticket_id/remarks", controllers.GetRemarksByTicket)
 
-	// =========================
-	// ATTACHMENTS
-	// =========================
-	protected.Get("/attachments/:id", controllers.ViewAttachment)
+	// ── Categories & Subcategories ───────────────────────────────────────────
+	userRoutes.Post("/add-category", controllers.AddCategory)
+	userRoutes.Post("/add-sub-category", controllers.AddSubCategory)
+	userRoutes.Get("/categories", controllers.GetCategories)
+	userRoutes.Get("/categories/:id/sub-categories", controllers.GetSubCategoriesByCategory)
+	userRoutes.Patch("/subcategories/:id/description", controllers.UpdateSubCategoryDescription)
+	userRoutes.Put("/update-categories/:id", controllers.UpdateCategoryName)
+	userRoutes.Put("/update-sub-categories/:id", controllers.UpdateSubCategoryName)
+	userRoutes.Delete("/delete-category/:id", controllers.DeleteCategory)
+	userRoutes.Delete("/delete-subcategory/:id", controllers.DeleteSubCategory)
 
-	// =========================
-	// CATEGORIES
-	// =========================
-	categories := protected.Group("/categories")
-
-	categories.Post("/", controllers.AddCategory)
-	categories.Get("/", controllers.GetCategories)
-	categories.Put("/:id", controllers.UpdateCategoryName)
-	categories.Delete("/:id", controllers.DeleteCategory)
-
-	categories.Get("/:id/subcategories", controllers.GetSubCategoriesByCategory)
-
-	subcategories := protected.Group("/subcategories")
-
-	subcategories.Post("/", controllers.AddSubCategory)
-	subcategories.Put("/:id", controllers.UpdateSubCategoryName)
-	subcategories.Patch("/:id/description", controllers.UpdateSubCategoryDescription)
-	subcategories.Delete("/:id", controllers.DeleteSubCategory)
 }
