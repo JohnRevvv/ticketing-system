@@ -21,9 +21,7 @@ func main() {
 		log.Println("✅ .env loaded")
 	}
 
-	// Optional: check if variables are loaded
-	fmt.Println("DB_SSLMODE:", os.Getenv("DB_SSLMODE"))
-	fmt.Println("DB_TIMEZONE:", os.Getenv("DB_TIMEZONE"))
+	log.Println("Environment variables loaded")
 
 	// Connect DB
 	if middleware.ConnectDB() {
