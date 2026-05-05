@@ -39,7 +39,6 @@ func generateTicketID() string {
 }
 
 func CreateTicket(c *fiber.Ctx) error {
-	// Start DB transaction
 	tx := middleware.DBConn.Begin()
 
 	// Parse ticket fields
@@ -57,7 +56,7 @@ func CreateTicket(c *fiber.Ctx) error {
 		Status:      "for endorsement",
 	}
 
-	// Get user info from JWT
+	// Get user
 	userID, err := middleware.GetUserIDFromJWT(c)
 	if err != nil {
 		tx.Rollback()
@@ -78,7 +77,7 @@ func CreateTicket(c *fiber.Ctx) error {
 
 	ticket.Username = user.Username
 
-	// Save ticket
+	// Save ticket first
 	if err := tx.Create(&ticket).Error; err != nil {
 		tx.Rollback()
 		return c.Status(fiber.StatusInternalServerError).JSON(response.ResponseModel{
@@ -87,14 +86,24 @@ func CreateTicket(c *fiber.Ctx) error {
 		})
 	}
 
-	// Handle attachments
+	// =========================
+	// 📎 ATTACHMENTS SECTION
+	// =========================
+
+	insertedCount := 0
+
 	form, err := c.MultipartForm()
-	if err == nil && form.File != nil {
+	if err == nil && form != nil && form.File != nil {
+
 		files := form.File["attachments"]
+
+		if len(files) == 0 {
+			fmt.Println("No attachments provided")
+		}
 
 		baseUploadPath := os.Getenv("UPLOAD_PATH")
 		if baseUploadPath == "" {
-			baseUploadPath = "uploads/attachments"
+			baseUploadPath = "/var/www/ticketing/uploads/attachments"
 		}
 
 		if err := os.MkdirAll(baseUploadPath, os.ModePerm); err != nil {
@@ -106,6 +115,8 @@ func CreateTicket(c *fiber.Ctx) error {
 		}
 
 		for _, file := range files {
+
+			// size check
 			if file.Size > 5*1024*1024 {
 				tx.Rollback()
 				return c.Status(fiber.StatusBadRequest).JSON(response.ResponseModel{
@@ -115,10 +126,16 @@ func CreateTicket(c *fiber.Ctx) error {
 			}
 
 			cleanFileName := sanitizeFileName(file.Filename)
-			savedFileName := fmt.Sprintf("%s_%d_%s", ticket.TicketID, time.Now().UnixNano(), cleanFileName)
-			filePath := fmt.Sprintf("%s/%s", baseUploadPath, savedFileName)
 
-			if err := c.SaveFile(file, filePath); err != nil {
+			savedFileName := fmt.Sprintf("%s_%d_%s",
+				ticket.TicketID,
+				time.Now().UnixNano(),
+				cleanFileName,
+			)
+
+			fullPath := fmt.Sprintf("%s/%s", baseUploadPath, savedFileName)
+
+			if err := c.SaveFile(file, fullPath); err != nil {
 				tx.Rollback()
 				return c.Status(fiber.StatusInternalServerError).JSON(response.ResponseModel{
 					RetCode: "500",
@@ -129,7 +146,7 @@ func CreateTicket(c *fiber.Ctx) error {
 			attachment := models.TicketAttachment{
 				TicketID:   ticket.TicketID,
 				FileName:   cleanFileName,
-				FilePath: fmt.Sprintf("attachments/%s", savedFileName),
+				FilePath:   fmt.Sprintf("attachments/%s", savedFileName),
 				UploadedBy: user.Username,
 			}
 
@@ -140,10 +157,21 @@ func CreateTicket(c *fiber.Ctx) error {
 					Message: "Failed to save attachment metadata",
 				})
 			}
+
+			insertedCount++
 		}
 	}
 
-	// Get endorser email
+	// 🚨 VALIDATION: files sent but nothing saved
+	if err == nil && insertedCount == 0 && form != nil && len(form.File["attachments"]) > 0 {
+		tx.Rollback()
+		return c.Status(fiber.StatusInternalServerError).JSON(response.ResponseModel{
+			RetCode: "500",
+			Message: "Attachments were uploaded but not saved to database",
+		})
+	}
+
+	// Get endorser
 	var endorser models.UserAccount
 	if err := middleware.DBConn.
 		Where("username = ?", ticket.Endorser).
@@ -165,7 +193,7 @@ func CreateTicket(c *fiber.Ctx) error {
 		})
 	}
 
-	// Send email asynchronously
+	// Async email
 	go func() {
 		if err := services.SendEndorserNotification(ticket, endorser.Email); err != nil {
 			log.Println("Error sending endorser email:", err)
