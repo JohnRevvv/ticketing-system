@@ -15,11 +15,12 @@ import (
 
 func Register(c *fiber.Ctx) error {
 	var body struct {
-		Username string `json:"username"`
-		Password string `json:"password"`
-		FullName string `json:"full_name"`
-		Position string `json:"position"`
-		Email    string `json:"email"`
+		Username    string `json:"username"`
+		Password    string `json:"password"`
+		FullName    string `json:"full_name"`
+		Position    string `json:"position"`
+		Email       string `json:"email"`
+		Institution string `json:"institution"`
 	}
 
 	if err := c.BodyParser(&body); err != nil {
@@ -56,12 +57,13 @@ func Register(c *fiber.Ctx) error {
 	}
 
 	user := models.UserAccount{
-		Username: body.Username,
-		Password: string(hashedPassword),
-		FullName: body.FullName,
-		Email:    body.Email,
-		Position: body.Position,
-		Status:   "inactive",
+		Username:    body.Username,
+		Password:    string(hashedPassword),
+		FullName:    body.FullName,
+		Email:       body.Email,
+		Position:    body.Position,
+		Institution: body.Institution,
+		Status:      "inactive",
 	}
 
 	if err := middleware.DBConn.Create(&user).Error; err != nil {
