@@ -109,6 +109,8 @@ func CreateTicket(c *fiber.Ctx) error {
                 "image/jpeg":      true,
                 "image/png":       true,
                 "application/pdf": true,
+				"application/xlsx": true,
+				"application/docx": true,
             }
 
             if !allowedTypes[contentType] {
