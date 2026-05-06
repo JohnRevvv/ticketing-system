@@ -38,7 +38,7 @@ type TicketAttachment struct {
 	ID         uint   `gorm:"primaryKey" json:"id"`
 	TicketID   string `json:"ticket_id"`
 	FileName   string `json:"file_name"`
-	FilePath   string `json:"file_path"`
+	FileURL   string `json:"file_url"`
 	UploadedBy string `json:"uploaded_by"`
 }
 

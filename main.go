@@ -6,6 +6,7 @@ import (
 	"os"
 	"ticketing-be-dev/middleware"
 	"ticketing-be-dev/routes"
+	"ticketing-be-dev/services"
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/cors"
@@ -21,11 +22,14 @@ func main() {
 		log.Println("✅ .env loaded")
 	}
 
-	log.Println("Environment variables loaded")
-
 	// Connect DB
 	if middleware.ConnectDB() {
 		log.Fatal("❌ Failed to connect to database")
+	}
+
+	// ✅ Init S3
+	if err := services.InitS3(); err != nil {
+		log.Fatal("❌ Failed to initialize S3:", err)
 	}
 
 	// Fiber app
@@ -34,17 +38,10 @@ func main() {
 
 	// CORS
 	app.Use(cors.New(cors.Config{
-    AllowOrigins: "*",
-    AllowMethods: "GET,POST,PUT,PATCH,DELETE,OPTIONS",
-    AllowHeaders: "Origin, Content-Type, Accept, Authorization",
+		AllowOrigins: "*",
+		AllowMethods: "GET,POST,PUT,PATCH,DELETE,OPTIONS",
+		AllowHeaders: "Origin, Content-Type, Accept, Authorization",
 	}))
-
-
-	// ── Static file serving ───────────────────────────────────────────────────
-	// Files are saved to ./upload/attachments/xxx on disk.
-	// This maps GET /uploads/* → ./upload/* so the frontend can access them.
-	// Example: http://localhost:8080/uploads/attachments/SR000003_xxx.png
-	app.Static("/uploads", "/var/www/ticketing/uploads")
 
 	// Health check
 	app.Get("/", func(c *fiber.Ctx) error {
