@@ -122,7 +122,7 @@ func CreateTicket(c *fiber.Ctx) error {
 			}
 
 			// ✅ Upload to S3
-			fileName, fileURL, err := services.UploadToS3(file, ticket.TicketID)
+			fileName, filekey, err := services.UploadToS3(file, ticket.TicketID)
 			if err != nil {
 				log.Println("❌ S3 UPLOAD FAILED")
 				log.Println("TicketID:", ticket.TicketID)
@@ -146,7 +146,7 @@ func CreateTicket(c *fiber.Ctx) error {
 			attachment := models.TicketAttachment{
 				TicketID:   ticket.TicketID,
 				FileName:   fileName,
-				FileURL:    fileURL, // consider renaming to FileURL
+				FileKey:    filekey, // consider renaming to FileURL
 				UploadedBy: user.Username,
 			}
 
@@ -295,9 +295,9 @@ func UpdateTicket(c *fiber.Ctx) error {
 
 			cleanFileName := sanitizeFileName(file.Filename)
 			savedFileName := fmt.Sprintf("%s_%d_%s", ticket.TicketID, time.Now().UnixNano(), cleanFileName)
-			filePath := fmt.Sprintf("%s/%s", baseUploadPath, savedFileName)
+			filekey := fmt.Sprintf("%s/%s", baseUploadPath, savedFileName)
 
-			if err := c.SaveFile(file, filePath); err != nil {
+			if err := c.SaveFile(file, filekey); err != nil {
 				tx.Rollback()
 				return c.Status(fiber.StatusInternalServerError).JSON(response.ResponseModel{
 					RetCode: "500",
@@ -308,7 +308,7 @@ func UpdateTicket(c *fiber.Ctx) error {
 			attachment := models.TicketAttachment{
 				TicketID:   ticket.TicketID,
 				FileName:   cleanFileName,
-				FileURL:    filePath,
+				FileKey:    filekey,
 				UploadedBy: user.Username,
 			}
 
@@ -378,6 +378,25 @@ func GetTicketByID(c *fiber.Ctx) error {
 	})
 }
 
+// func ViewAttachment(c *fiber.Ctx) error {
+// 	attachmentID := c.Params("id")
+
+// 	var attachment models.TicketAttachment
+
+// 	if err := middleware.DBConn.
+// 		Where("id = ?", attachmentID).
+// 		First(&attachment).Error; err != nil {
+
+// 		return c.Status(fiber.StatusNotFound).JSON(response.ResponseModel{
+// 			RetCode: "404",
+// 			Message: "Attachment not found",
+// 		})
+// 	}
+
+// 	// 🔥 Redirect to S3 URL directly
+// 	return c.Redirect(attachment.FileURL, 302)
+// }
+
 func ViewAttachment(c *fiber.Ctx) error {
 	attachmentID := c.Params("id")
 
@@ -393,8 +412,16 @@ func ViewAttachment(c *fiber.Ctx) error {
 		})
 	}
 
-	// 🔥 Redirect to S3 URL directly
-	return c.Redirect(attachment.FileURL, 302)
+	// Generate presigned URL (example 5 minutes expiry)
+	url, err := services.GeneratePresignedGetURL(attachment.FileKey, 5*time.Minute)
+if err != nil {
+	return c.Status(500).JSON(response.ResponseModel{
+		RetCode: "500",
+		Message: "Failed to generate file URL",
+	})
+}
+
+return c.Redirect(url, 302)
 }
 
 func GetAllTickets(c *fiber.Ctx) error {
@@ -515,10 +542,10 @@ func GetUserTickets(c *fiber.Ctx) error {
 
 		// ✅ Fix paths here
 		for i := range attachments {
-			attachments[i].FileURL = fmt.Sprintf(
+			attachments[i].FileKey = fmt.Sprintf(
 				"%s/uploads/%s",
 				baseURL,
-				attachments[i].FileURL,
+				attachments[i].FileKey,
 			)
 		}
 

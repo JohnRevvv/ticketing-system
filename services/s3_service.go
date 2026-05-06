@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"mime/multipart"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -45,7 +46,23 @@ func InitS3() error {
 	return nil
 }
 
-// ✅ UPLOAD
+func GeneratePresignedGetURL(objectKey string, expiration time.Duration) (string, error) {
+	client := s3Client
+
+	presignClient := s3.NewPresignClient(client)
+
+	resp, err := presignClient.PresignGetObject(context.TODO(), &s3.GetObjectInput{
+		Bucket: aws.String(bucketName),
+		Key:    aws.String(objectKey),
+	}, s3.WithPresignExpires(expiration))
+
+	if err != nil {
+		return "", err
+	}
+
+	return resp.URL, nil
+}
+
 func UploadToS3(file *multipart.FileHeader, ticketID string) (string, string, error) {
 
 	if s3Client == nil || bucketName == "" {
@@ -59,7 +76,13 @@ func UploadToS3(file *multipart.FileHeader, ticketID string) (string, string, er
 	defer src.Close()
 
 	cleanFileName := sanitizeFileName(file.Filename)
-	key := fmt.Sprintf("attachments/%s_%d_%s", ticketID, time.Now().UnixNano(), cleanFileName)
+
+	// 🔥 S3 OBJECT KEY (this is what you store in DB)
+	key := fmt.Sprintf("attachments/%s_%d_%s",
+		ticketID,
+		time.Now().UnixNano(),
+		cleanFileName,
+	)
 
 	contentType := file.Header.Get("Content-Type")
 	if contentType == "" {
@@ -79,16 +102,73 @@ func UploadToS3(file *multipart.FileHeader, ticketID string) (string, string, er
 		return "", "", err
 	}
 
-	url := fmt.Sprintf("https://%s.s3.%s.amazonaws.com/%s",
-		bucketName,
-		os.Getenv("AWS_REGION"),
-		key,
-	)
+	// ❌ REMOVE PUBLIC URL GENERATION
 
-	return cleanFileName, url, nil
+	// ✅ return:
+	// 1. filename (for display)
+	// 2. S3 key (for storage)
+	return cleanFileName, key, nil
 }
+
+// func GeneratePresignedDownloadURL(key string) (string, error) {
+// 	presignClient := s3.NewPresignClient(s3Client)
+
+// 	req, err := presignClient.PresignGetObject(context.TODO(), &s3.GetObjectInput{
+// 		Bucket: aws.String(bucketName),
+// 		Key:    aws.String(key),
+// 	}, s3.WithPresignExpires(5*time.Minute))
+
+// 	if err != nil {
+// 		return "", err
+// 	}
+
+// 	return req.URL, nil
+// }
+
+// ✅ UPLOAD
+// func UploadToS3(file *multipart.FileHeader, ticketID string) (string, string, error) {
+
+// 	if s3Client == nil || bucketName == "" {
+// 		return "", "", fmt.Errorf("S3 is not initialized")
+// 	}
+
+// 	src, err := file.Open()
+// 	if err != nil {
+// 		return "", "", err
+// 	}
+// 	defer src.Close()
+
+// 	cleanFileName := sanitizeFileName(file.Filename)
+// 	key := fmt.Sprintf("attachments/%s_%d_%s", ticketID, time.Now().UnixNano(), cleanFileName)
+
+// 	contentType := file.Header.Get("Content-Type")
+// 	if contentType == "" {
+// 		contentType = "application/octet-stream"
+// 	}
+
+// 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+// 	defer cancel()
+
+// 	_, err = s3Client.PutObject(ctx, &s3.PutObjectInput{
+// 		Bucket:      aws.String(bucketName),
+// 		Key:         aws.String(key),
+// 		Body:        src,
+// 		ContentType: aws.String(contentType),
+// 	})
+// 	if err != nil {
+// 		return "", "", err
+// 	}
+
+// 	url := fmt.Sprintf("https://%s.s3.%s.amazonaws.com/%s",
+// 		bucketName,
+// 		os.Getenv("AWS_REGION"),
+// 		key,
+// 	)
+
+// 	return cleanFileName, url, nil
+// }
 
 // helper
 func sanitizeFileName(name string) string {
-	return name
+	return strings.ReplaceAll(name, " ", "_")
 }
