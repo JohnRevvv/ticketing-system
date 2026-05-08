@@ -110,63 +110,20 @@ func UploadToS3(file *multipart.FileHeader, ticketID string) (string, string, er
 	return cleanFileName, key, nil
 }
 
-// func GeneratePresignedDownloadURL(key string) (string, error) {
-// 	presignClient := s3.NewPresignClient(s3Client)
+func GeneratePresignedDownloadURL(key string) (string, error) {
+	presignClient := s3.NewPresignClient(s3Client)
 
-// 	req, err := presignClient.PresignGetObject(context.TODO(), &s3.GetObjectInput{
-// 		Bucket: aws.String(bucketName),
-// 		Key:    aws.String(key),
-// 	}, s3.WithPresignExpires(5*time.Minute))
+	req, err := presignClient.PresignGetObject(context.TODO(), &s3.GetObjectInput{
+		Bucket: aws.String(bucketName),
+		Key:    aws.String(key),
+	}, s3.WithPresignExpires(5*time.Minute))
 
-// 	if err != nil {
-// 		return "", err
-// 	}
+	if err != nil {
+		return "", err
+	}
 
-// 	return req.URL, nil
-// }
-
-// ✅ UPLOAD
-// func UploadToS3(file *multipart.FileHeader, ticketID string) (string, string, error) {
-
-// 	if s3Client == nil || bucketName == "" {
-// 		return "", "", fmt.Errorf("S3 is not initialized")
-// 	}
-
-// 	src, err := file.Open()
-// 	if err != nil {
-// 		return "", "", err
-// 	}
-// 	defer src.Close()
-
-// 	cleanFileName := sanitizeFileName(file.Filename)
-// 	key := fmt.Sprintf("attachments/%s_%d_%s", ticketID, time.Now().UnixNano(), cleanFileName)
-
-// 	contentType := file.Header.Get("Content-Type")
-// 	if contentType == "" {
-// 		contentType = "application/octet-stream"
-// 	}
-
-// 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-// 	defer cancel()
-
-// 	_, err = s3Client.PutObject(ctx, &s3.PutObjectInput{
-// 		Bucket:      aws.String(bucketName),
-// 		Key:         aws.String(key),
-// 		Body:        src,
-// 		ContentType: aws.String(contentType),
-// 	})
-// 	if err != nil {
-// 		return "", "", err
-// 	}
-
-// 	url := fmt.Sprintf("https://%s.s3.%s.amazonaws.com/%s",
-// 		bucketName,
-// 		os.Getenv("AWS_REGION"),
-// 		key,
-// 	)
-
-// 	return cleanFileName, url, nil
-// }
+	return req.URL, nil
+}
 
 // helper
 func sanitizeFileName(name string) string {

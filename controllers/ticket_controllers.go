@@ -397,31 +397,60 @@ func GetTicketByID(c *fiber.Ctx) error {
 // 	return c.Redirect(attachment.FileURL, 302)
 // }
 
+// func ViewAttachment(c *fiber.Ctx) error {
+// 	attachmentID := c.Params("id")
+
+// 	var attachment models.TicketAttachment
+
+// 	if err := middleware.DBConn.
+// 		Where("id = ?", attachmentID).
+// 		First(&attachment).Error; err != nil {
+
+// 		return c.Status(fiber.StatusNotFound).JSON(response.ResponseModel{
+// 			RetCode: "404",
+// 			Message: "Attachment not found",
+// 		})
+// 	}
+
+// 	// Generate presigned URL (example 5 minutes expiry)
+// 	url, err := services.GeneratePresignedGetURL(attachment.FileKey, 5*time.Minute)
+// if err != nil {
+// 	return c.Status(500).JSON(response.ResponseModel{
+// 		RetCode: "500",
+// 		Message: "Failed to generate file URL",
+// 	})
+// }
+
+// return c.Redirect(url, 302)
+// }
+
 func ViewAttachment(c *fiber.Ctx) error {
-	attachmentID := c.Params("id")
+    attachmentID := c.Params("id")
 
-	var attachment models.TicketAttachment
+    var attachment models.TicketAttachment
+    if err := middleware.DBConn.
+        Where("id = ?", attachmentID).
+        First(&attachment).Error; err != nil {
+        return c.Status(fiber.StatusNotFound).JSON(response.ResponseModel{
+            RetCode: "404",
+            Message: "Attachment not found",
+        })
+    }
 
-	if err := middleware.DBConn.
-		Where("id = ?", attachmentID).
-		First(&attachment).Error; err != nil {
+    url, err := services.GeneratePresignedGetURL(attachment.FileKey, 5*time.Minute)
+    if err != nil {
+        return c.Status(500).JSON(response.ResponseModel{
+            RetCode: "500",
+            Message: "Failed to generate file URL",
+        })
+    }
 
-		return c.Status(fiber.StatusNotFound).JSON(response.ResponseModel{
-			RetCode: "404",
-			Message: "Attachment not found",
-		})
-	}
-
-	// Generate presigned URL (example 5 minutes expiry)
-	url, err := services.GeneratePresignedGetURL(attachment.FileKey, 5*time.Minute)
-if err != nil {
-	return c.Status(500).JSON(response.ResponseModel{
-		RetCode: "500",
-		Message: "Failed to generate file URL",
-	})
-}
-
-return c.Redirect(url, 302)
+    // ✅ Return the presigned URL as JSON — let the frontend fetch S3 directly
+    return c.JSON(fiber.Map{
+        "data": fiber.Map{
+            "url": url,
+        },
+    })
 }
 
 func GetAllTickets(c *fiber.Ctx) error {
