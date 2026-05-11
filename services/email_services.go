@@ -483,7 +483,7 @@ func SendResolverNotification(ticket models.CreateTicket, resolverUsername strin
 }
 
 // ==============================
-//Submitter email notifications
+// Submitter email notifications
 // ==============================
 
 func SendEndorsedNotification(ticket models.CreateTicket, submitterName string, toEmail string, endorserName string) error {
@@ -1054,10 +1054,10 @@ This is an automated email.
 }
 
 // ==============================
-//      Remark notif
+//      Remark notification
 // ==============================
 
-func SendTicketRemarkNotification(toEmail string, submitterName string, ticket models.CreateTicket, message string, senderUsername string) error {
+func SendTicketRemark1Notification(toEmail string, submitterName string, ticket models.CreateTicket, message string, senderUsername string) error {
 
 	from := os.Getenv("EMAIL_ADDRESS")
 	password := os.Getenv("EMAIL_PASSWORD")
@@ -1092,6 +1092,87 @@ func SendTicketRemarkNotification(toEmail string, submitterName string, ticket m
 
 <p style="margin-top:20px;">
 Please log in to view full details.
+</p>
+
+</div>
+
+</body>
+</html>
+`,
+		submitterName,
+		ticket.TicketID,
+		ticket.Subject,
+		message,
+		senderUsername,
+	)
+
+	msg := []byte(
+		"Subject: " + subject + "\r\n" +
+			"MIME-Version: 1.0\r\n" +
+			"Content-Type: text/html; charset=\"UTF-8\"\r\n\r\n" +
+			body,
+	)
+
+	err := smtp.SendMail(
+		smtpHost+":587",
+		auth,
+		from,
+		[]string{toEmail},
+		msg,
+	)
+
+	return err
+}
+
+func SendTicketRemarkNotification(toEmail string, submitterName string, ticket models.CreateTicket, message string, senderUsername string) error {
+
+	from := os.Getenv("EMAIL_ADDRESS")
+	password := os.Getenv("EMAIL_PASSWORD")
+	smtpHost := os.Getenv("SMTP_HOST")
+
+	auth := smtp.PlainAuth("", from, password, smtpHost)
+
+	subject := "💬 New Remark on Your Ticket"
+
+	body := fmt.Sprintf(`
+<!DOCTYPE html>
+<html>
+<body style="font-family: Arial; background:#f4f6f8; padding:20px;">
+
+<div style="max-width:600px; margin:auto; background:#fff; padding:25px; border-radius:10px;">
+
+<h2 style="color:#007bff;">New Ticket Remark</h2>
+
+<p>Hello <b>%s</b>,</p>
+
+<p>A new remark has been added to your ticket.</p>
+
+<hr>
+
+<p><b>Ticket ID:</b> %s</p>
+<p><b>Subject:</b> %s</p>
+
+<hr>
+
+<h3 style="color:#333;">Message</h3>
+
+<div style="
+	background:#f1f3f5;
+	padding:15px;
+	border-radius:8px;
+	font-size:16px;
+	color:#222;
+	border-left:4px solid #007bff;
+">
+	%s
+</div>
+
+<hr>
+
+<p><b>Sent By:</b> %s</p>
+
+<p style="margin-top:20px; font-size:12px; color:#777;">
+Please log in to view full ticket details.
 </p>
 
 </div>
