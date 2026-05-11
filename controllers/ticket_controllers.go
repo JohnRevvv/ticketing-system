@@ -378,52 +378,6 @@ func GetTicketByID(c *fiber.Ctx) error {
 	})
 }
 
-// func ViewAttachment(c *fiber.Ctx) error {
-// 	attachmentID := c.Params("id")
-
-// 	var attachment models.TicketAttachment
-
-// 	if err := middleware.DBConn.
-// 		Where("id = ?", attachmentID).
-// 		First(&attachment).Error; err != nil {
-
-// 		return c.Status(fiber.StatusNotFound).JSON(response.ResponseModel{
-// 			RetCode: "404",
-// 			Message: "Attachment not found",
-// 		})
-// 	}
-
-// 	// 🔥 Redirect to S3 URL directly
-// 	return c.Redirect(attachment.FileURL, 302)
-// }
-
-// func ViewAttachment(c *fiber.Ctx) error {
-// 	attachmentID := c.Params("id")
-
-// 	var attachment models.TicketAttachment
-
-// 	if err := middleware.DBConn.
-// 		Where("id = ?", attachmentID).
-// 		First(&attachment).Error; err != nil {
-
-// 		return c.Status(fiber.StatusNotFound).JSON(response.ResponseModel{
-// 			RetCode: "404",
-// 			Message: "Attachment not found",
-// 		})
-// 	}
-
-// 	// Generate presigned URL (example 5 minutes expiry)
-// 	url, err := services.GeneratePresignedGetURL(attachment.FileKey, 5*time.Minute)
-// if err != nil {
-// 	return c.Status(500).JSON(response.ResponseModel{
-// 		RetCode: "500",
-// 		Message: "Failed to generate file URL",
-// 	})
-// }
-
-// return c.Redirect(url, 302)
-// }
-
 func ViewAttachment(c *fiber.Ctx) error {
     attachmentID := c.Params("id")
 

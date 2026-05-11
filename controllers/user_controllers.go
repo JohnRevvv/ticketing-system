@@ -60,7 +60,7 @@ func Register(c *fiber.Ctx) error {
 	user := models.UserAccount{
 		Username:    body.Username,
 		Password:    string(hashedPassword),
-		FirstName:    body.FirstName,
+		FirstName:   body.FirstName,
 		LastName:    body.LastName,
 		Email:       body.Email,
 		Position:    body.Position,
@@ -253,9 +253,29 @@ func EndorseTicket(c *fiber.Ctx) error {
 				go services.SendApproverNotification(
 					ticket,
 					approver.Email,
-					approver.FirstName + approver.LastName,
+					approver.FirstName+" "+approver.LastName,
 				)
 			}
+		}
+	}
+
+	// ✅ Get submitter info (CORRECT WAY)
+	var submitter models.UserAccount
+	if err := middleware.DBConn.
+		Where("username = ?", ticket.Username).
+		First(&submitter).Error; err != nil {
+
+		log.Println("Submitter not found:", err)
+	} else {
+
+		// send email only if exists
+		if submitter.Email != "" {
+			go services.SendEndorsedNotification(
+				ticket,
+				submitter.FirstName+" "+submitter.LastName,
+				submitter.Email,
+				user.FirstName+" "+user.LastName,
+			)
 		}
 	}
 
@@ -265,8 +285,6 @@ func EndorseTicket(c *fiber.Ctx) error {
 		Data:    ticket,
 	})
 }
-
-// ── REPLACE your ApproveTicket function with this ──────────────────────────
 
 // ── Replace ONLY the ApproveTicket function in your user controller ──────────
 // The rest of the file stays exactly the same.
@@ -438,12 +456,9 @@ func CancelTicket(c *fiber.Ctx) error {
 		}
 	}
 
-	// ✅ FIXED: The ticket CREATOR can cancel regardless of their role,
-	// as long as the ticket is not yet in progress or resolved.
+	// ✅ Submitter can ONLY cancel while ticket is still for endorsement
 	if ticket.Username == user.Username &&
-		ticket.Status != "in progress" &&
-		ticket.Status != "resolved" &&
-		ticket.Status != "cancelled" {
+		ticket.Status == "for endorsement" {
 		canCancel = true
 	}
 

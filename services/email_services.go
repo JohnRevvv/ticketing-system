@@ -482,6 +482,300 @@ func SendResolverNotification(ticket models.CreateTicket, resolverUsername strin
 	return err
 }
 
+//Submitter email notifications
+
+func SendEndorsedNotification(ticket models.CreateTicket, submitterName string, toEmail string, endorserName string) error {
+
+	from := os.Getenv("EMAIL_ADDRESS")
+	password := os.Getenv("EMAIL_PASSWORD")
+	smtpHost := os.Getenv("SMTP_HOST")
+
+	auth := smtp.PlainAuth("", from, password, smtpHost)
+
+	subject := "📌 Your Ticket Has Been Endorsed"
+
+	body := fmt.Sprintf(`
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background-color: #f4f6f8;
+      margin: 0;
+      padding: 20px;
+    }
+    .container {
+      max-width: 600px;
+      margin: auto;
+      background: #ffffff;
+      padding: 25px;
+      border-radius: 10px;
+      border: 1px solid #eaeaea;
+    }
+    .header {
+      text-align: center;
+      border-bottom: 1px solid #eee;
+      padding-bottom: 15px;
+    }
+    .header h2 {
+      margin: 0;
+      color: #2c3e50;
+    }
+    .header p {
+      color: #777;
+      font-size: 14px;
+    }
+    .ticket-box {
+      background: #f9fafb;
+      padding: 15px;
+      margin-top: 20px;
+      border-radius: 8px;
+      border-left: 5px solid #007bff;
+    }
+    .label {
+      font-weight: bold;
+      color: #333;
+    }
+    .value {
+      color: #555;
+    }
+    .status {
+      font-weight: bold;
+      color: #007bff;
+    }
+    .btn {
+      display: block;
+      text-align: center;
+      margin: 25px auto 10px;
+      padding: 12px;
+      font-size: 16px;
+      color: #ffffff !important;
+      background-color: #007bff;
+      text-decoration: none !important;
+      border-radius: 6px;
+      width: 220px;
+    }
+    .footer {
+      margin-top: 25px;
+      font-size: 12px;
+      text-align: center;
+      color: #888;
+      border-top: 1px solid #eee;
+      padding-top: 15px;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="container">
+
+    <div class="header">
+      <h2>📌 Ticket Endorsed</h2>
+      <p>Your ticket has been endorsed and forwarded for approval.</p>
+    </div>
+
+    <div class="ticket-box">
+      <p><span class="label">Hello:</span> <span class="value">%s</span></p>
+      <p><span class="label">Ticket ID:</span> <span class="value">%s</span></p>
+      <p><span class="label">Subject:</span> <span class="value">%s</span></p>
+      <p><span class="label">Category:</span> <span class="value">%s</span></p>
+      <p><span class="label">Priority:</span> <span class="value">%s</span></p>
+      <p><span class="label">Endorsed By:</span> <span class="value">%s</span></p>
+      <p><span class="label">Status:</span> <span class="status">For Approval</span></p>
+    </div>
+
+    <a href="https://idiyanale.bakawan-ai.com/login" class="btn">
+      View Ticket
+    </a>
+
+    <div class="footer">
+      <p><b>Note:</b> This is an automated message.</p>
+      <p>Please wait for the approver's action on your request.</p>
+    </div>
+
+  </div>
+
+</body>
+</html>
+`,
+		submitterName,
+		ticket.TicketID,
+		ticket.Subject,
+		ticket.Category,
+		ticket.Priority,
+		endorserName,
+	)
+
+	msg := []byte(
+		"Subject: " + subject + "\r\n" +
+			"MIME-Version: 1.0\r\n" +
+			"Content-Type: text/html; charset=\"UTF-8\"\r\n\r\n" +
+			body,
+	)
+
+	err := smtp.SendMail(
+		smtpHost+":587",
+		auth,
+		from,
+		[]string{toEmail},
+		msg,
+	)
+
+	if err != nil {
+		log.Println("Failed to send endorsed email:", err)
+	}
+
+	return err
+}
+
+func SendApprovedNotification(ticket models.CreateTicket, submitterName string, toEmail string, approverName string) error {
+
+	from := os.Getenv("EMAIL_ADDRESS")
+	password := os.Getenv("EMAIL_PASSWORD")
+	smtpHost := os.Getenv("SMTP_HOST")
+
+	auth := smtp.PlainAuth("", from, password, smtpHost)
+
+	subject := "✅ Your Ticket Has Been Approved"
+
+	body := fmt.Sprintf(`
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background-color: #f4f6f8;
+      margin: 0;
+      padding: 20px;
+    }
+    .container {
+      max-width: 600px;
+      margin: auto;
+      background: #ffffff;
+      padding: 25px;
+      border-radius: 10px;
+      border: 1px solid #eaeaea;
+    }
+    .header {
+      text-align: center;
+      border-bottom: 1px solid #eee;
+      padding-bottom: 15px;
+    }
+    .header h2 {
+      margin: 0;
+      color: #2c3e50;
+    }
+    .header p {
+      color: #777;
+      font-size: 14px;
+    }
+    .ticket-box {
+      background: #f9fafb;
+      padding: 15px;
+      margin-top: 20px;
+      border-radius: 8px;
+      border-left: 5px solid #28a745;
+    }
+    .label {
+      font-weight: bold;
+      color: #333;
+    }
+    .value {
+      color: #555;
+    }
+    .status {
+      font-weight: bold;
+      color: #28a745;
+    }
+    .btn {
+      display: block;
+      text-align: center;
+      margin: 25px auto 10px;
+      padding: 12px;
+      font-size: 16px;
+      color: #ffffff !important;
+      background-color: #28a745;
+      text-decoration: none !important;
+      border-radius: 6px;
+      width: 220px;
+    }
+    .footer {
+      margin-top: 25px;
+      font-size: 12px;
+      text-align: center;
+      color: #888;
+      border-top: 1px solid #eee;
+      padding-top: 15px;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="container">
+
+    <div class="header">
+      <h2>✅ Ticket Approved</h2>
+      <p>Your ticket has been approved and is now waiting for assignment.</p>
+    </div>
+
+    <div class="ticket-box">
+      <p><span class="label">Hello:</span> <span class="value">%s</span></p>
+      <p><span class="label">Ticket ID:</span> <span class="value">%s</span></p>
+      <p><span class="label">Subject:</span> <span class="value">%s</span></p>
+      <p><span class="label">Category:</span> <span class="value">%s</span></p>
+      <p><span class="label">Priority:</span> <span class="value">%s</span></p>
+      <p><span class="label">Approved By:</span> <span class="value">%s</span></p>
+      <p><span class="label">Status:</span> <span class="status">For Assignment</span></p>
+    </div>
+
+    <a href="https://idiyanale.bakawan-ai.com/login" class="btn">
+      View Ticket
+    </a>
+
+    <div class="footer">
+      <p><b>Note:</b> This is an automated message.</p>
+      <p>Your request is now pending resolver assignment.</p>
+    </div>
+
+  </div>
+
+</body>
+</html>
+`,
+		submitterName,
+		ticket.TicketID,
+		ticket.Subject,
+		ticket.Category,
+		ticket.Priority,
+		approverName,
+	)
+
+	msg := []byte(
+		"Subject: " + subject + "\r\n" +
+			"MIME-Version: 1.0\r\n" +
+			"Content-Type: text/html; charset=\"UTF-8\"\r\n\r\n" +
+			body,
+	)
+
+	err := smtp.SendMail(
+		smtpHost+":587",
+		auth,
+		from,
+		[]string{toEmail},
+		msg,
+	)
+
+	if err != nil {
+		log.Println("Failed to send approved email:", err)
+	}
+
+	return err
+}
+
 func SendResolvedNotification(ticket models.CreateTicket, submitterName string, toEmail string, resolverName string) error {
 	from := os.Getenv("EMAIL_ADDRESS")
 	password := os.Getenv("EMAIL_PASSWORD")
