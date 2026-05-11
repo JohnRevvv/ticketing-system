@@ -88,6 +88,7 @@ func UpdateUserProfile(c *fiber.Ctx) error {
 		LastName  string `json:"last_name"`
 		Email     string `json:"email"`
 		Password  string `json:"password"`
+		Institution string `json:"institution"`
 		Position  string `json:"position"`
 		Role      string `json:"role"`
 		Status    string `json:"status"`
@@ -127,6 +128,9 @@ func UpdateUserProfile(c *fiber.Ctx) error {
 	}
 	if body.LastName != "" {
 		user.LastName = body.LastName
+	}
+	if body.Institution != "" {
+		user.Institution = body.Institution
 	}
 	if body.Position != "" {
 		user.Position = body.Position
