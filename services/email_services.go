@@ -482,7 +482,9 @@ func SendResolverNotification(ticket models.CreateTicket, resolverUsername strin
 	return err
 }
 
+// ==============================
 //Submitter email notifications
+// ==============================
 
 func SendEndorsedNotification(ticket models.CreateTicket, submitterName string, toEmail string, endorserName string) error {
 
@@ -901,6 +903,223 @@ func SendResolvedNotification(ticket models.CreateTicket, submitterName string, 
 	if err != nil {
 		log.Println("Failed to send resolved email:", err)
 	}
+
+	return err
+}
+
+// ==============================
+//      Account Status
+// ==============================
+
+func SendAccountApprovedNotification(toEmail string, fullName string, role string) error {
+
+	from := os.Getenv("EMAIL_ADDRESS")
+	password := os.Getenv("EMAIL_PASSWORD")
+	smtpHost := os.Getenv("SMTP_HOST")
+
+	auth := smtp.PlainAuth("", from, password, smtpHost)
+
+	subject := "✅ Account Approved"
+
+	body := fmt.Sprintf(`
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+</head>
+<body style="font-family: Arial; background:#f4f6f8; padding:20px;">
+
+<div style="max-width:600px; margin:auto; background:#fff; padding:25px; border-radius:10px;">
+
+<h2 style="color:#28a745;">✅ Account Approved</h2>
+
+<p>Hello <b>%s</b>,</p>
+
+<p>Your account has been approved successfully.</p>
+
+<p>You may now log in to the system.</p>
+
+<div style="background:#f9fafb; padding:15px; border-radius:8px;">
+  <p><b>Role:</b> %s</p>
+  <p><b>Status:</b> Approved</p>
+</div>
+
+<a href="https://idiyanale.bakawan-ai.com/login"
+style="
+display:inline-block;
+margin-top:20px;
+padding:12px 20px;
+background:#28a745;
+color:white;
+text-decoration:none;
+border-radius:6px;
+">
+Login Now
+</a>
+
+<p style="margin-top:30px; font-size:12px; color:#777;">
+This is an automated email.
+</p>
+
+</div>
+
+</body>
+</html>
+`, fullName, role)
+
+	msg := []byte(
+		"Subject: " + subject + "\r\n" +
+			"MIME-Version: 1.0\r\n" +
+			"Content-Type: text/html; charset=\"UTF-8\"\r\n\r\n" +
+			body,
+	)
+
+	err := smtp.SendMail(
+		smtpHost+":587",
+		auth,
+		from,
+		[]string{toEmail},
+		msg,
+	)
+
+	if err != nil {
+		log.Println("Failed to send approval email:", err)
+	}
+
+	return err
+}
+
+func SendAccountRejectedNotification(toEmail string,fullName string) error {
+
+	from := os.Getenv("EMAIL_ADDRESS")
+	password := os.Getenv("EMAIL_PASSWORD")
+	smtpHost := os.Getenv("SMTP_HOST")
+
+	auth := smtp.PlainAuth("", from, password, smtpHost)
+
+	subject := "❌ Account Rejected"
+
+	body := fmt.Sprintf(`
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+</head>
+<body style="font-family: Arial; background:#f4f6f8; padding:20px;">
+
+<div style="max-width:600px; margin:auto; background:#fff; padding:25px; border-radius:10px;">
+
+<h2 style="color:#dc3545;">❌ Account Rejected</h2>
+
+<p>Hello <b>%s</b>,</p>
+
+<p>We regret to inform you that your account registration has been rejected.</p>
+
+<p>Please contact the administrator for more information.</p>
+
+<div style="background:#f9fafb; padding:15px; border-radius:8px;">
+  <p><b>Status:</b> Rejected</p>
+</div>
+
+<p style="margin-top:30px; font-size:12px; color:#777;">
+This is an automated email.
+</p>
+
+</div>
+
+</body>
+</html>
+`, fullName)
+
+	msg := []byte(
+		"Subject: " + subject + "\r\n" +
+			"MIME-Version: 1.0\r\n" +
+			"Content-Type: text/html; charset=\"UTF-8\"\r\n\r\n" +
+			body,
+	)
+
+	err := smtp.SendMail(
+		smtpHost+":587",
+		auth,
+		from,
+		[]string{toEmail},
+		msg,
+	)
+
+	if err != nil {
+		log.Println("Failed to send rejection email:", err)
+	}
+
+	return err
+}
+
+// ==============================
+//      Remark notif
+// ==============================
+
+func SendTicketRemarkNotification(toEmail string, submitterName string, ticket models.CreateTicket, message string, senderUsername string) error {
+
+	from := os.Getenv("EMAIL_ADDRESS")
+	password := os.Getenv("EMAIL_PASSWORD")
+	smtpHost := os.Getenv("SMTP_HOST")
+
+	auth := smtp.PlainAuth("", from, password, smtpHost)
+
+	subject := "💬 New Remark on Your Ticket"
+
+	body := fmt.Sprintf(`
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+</head>
+<body style="font-family: Arial; background:#f4f6f8; padding:20px;">
+
+<div style="max-width:600px; margin:auto; background:#fff; padding:25px; border-radius:10px;">
+
+<h2 style="color:#007bff;">💬 New Ticket Remark</h2>
+
+<p>Hello <b>%s</b>,</p>
+
+<p>A new remark has been added to your ticket.</p>
+
+<div style="background:#f9fafb; padding:15px; border-radius:8px;">
+  <p><b>Ticket ID:</b> %s</p>
+  <p><b>Subject:</b> %s</p>
+  <p><b>Message:</b> %s</p>
+  <p><b>Sent By:</b> %s</p>
+</div>
+
+<p style="margin-top:20px;">
+Please log in to view full details.
+</p>
+
+</div>
+
+</body>
+</html>
+`,
+		submitterName,
+		ticket.TicketID,
+		ticket.Subject,
+		message,
+		senderUsername,
+	)
+
+	msg := []byte(
+		"Subject: " + subject + "\r\n" +
+			"MIME-Version: 1.0\r\n" +
+			"Content-Type: text/html; charset=\"UTF-8\"\r\n\r\n" +
+			body,
+	)
+
+	err := smtp.SendMail(
+		smtpHost+":587",
+		auth,
+		from,
+		[]string{toEmail},
+		msg,
+	)
 
 	return err
 }

@@ -5,6 +5,7 @@ import (
 	"ticketing-be-dev/middleware"
 	"ticketing-be-dev/models"
 	"ticketing-be-dev/models/response"
+	"ticketing-be-dev/services"
 
 	"github.com/gofiber/fiber/v2"
 	"golang.org/x/crypto/bcrypt"
@@ -56,10 +57,14 @@ func UpdateUserRoleStatus(c *fiber.Ctx) error {
 		})
 	}
 
+	// ✅ Store old status before update
+	oldStatus := user.Status
+
 	// Update fields if provided
 	if body.Role != "" {
 		user.Role = strings.ToLower(body.Role)
 	}
+
 	if body.Status != "" {
 		user.Status = strings.ToLower(body.Status)
 	}
@@ -70,6 +75,34 @@ func UpdateUserRoleStatus(c *fiber.Ctx) error {
 			RetCode: "500",
 			Message: "Failed to update user",
 		})
+	}
+
+	// ✅ Send email notification if status changed
+	if oldStatus != user.Status {
+
+		fullName := user.FirstName + " " + user.LastName
+
+		switch user.Status {
+
+		case "approved":
+
+			if user.Email != "" {
+				go services.SendAccountApprovedNotification(
+					user.Email,
+					fullName,
+					user.Role,
+				)
+			}
+
+		case "rejected":
+
+			if user.Email != "" {
+				go services.SendAccountRejectedNotification(
+					user.Email,
+					fullName,
+				)
+			}
+		}
 	}
 
 	return c.Status(fiber.StatusOK).JSON(response.ResponseModel{
@@ -84,14 +117,14 @@ func UpdateUserProfile(c *fiber.Ctx) error {
 	userID := c.Params("id")
 
 	var body struct {
-		FirstName string `json:"first_name"`
-		LastName  string `json:"last_name"`
-		Email     string `json:"email"`
-		Password  string `json:"password"`
+		FirstName  string `json:"first_name"`
+		LastName   string `json:"last_name"`
+		Email      string `json:"email"`
+		Password   string `json:"password"`
 		Institution string `json:"institution"`
-		Position  string `json:"position"`
-		Role      string `json:"role"`
-		Status    string `json:"status"`
+		Position   string `json:"position"`
+		Role       string `json:"role"`
+		Status     string `json:"status"`
 	}
 
 	if err := c.BodyParser(&body); err != nil {
@@ -110,15 +143,23 @@ func UpdateUserProfile(c *fiber.Ctx) error {
 		})
 	}
 
+	// ✅ Store old status before update
+	oldStatus := user.Status
+
 	// Check email uniqueness if changed
 	if body.Email != "" && body.Email != user.Email {
 		var existing models.UserAccount
-		if err := middleware.DBConn.Where("email = ?", body.Email).First(&existing).Error; err == nil {
+
+		if err := middleware.DBConn.
+			Where("email = ?", body.Email).
+			First(&existing).Error; err == nil {
+
 			return c.Status(fiber.StatusConflict).JSON(response.ResponseModel{
 				RetCode: "409",
 				Message: "Email already exists",
 			})
 		}
+
 		user.Email = body.Email
 	}
 
@@ -126,31 +167,42 @@ func UpdateUserProfile(c *fiber.Ctx) error {
 	if body.FirstName != "" {
 		user.FirstName = body.FirstName
 	}
+
 	if body.LastName != "" {
 		user.LastName = body.LastName
 	}
+
 	if body.Institution != "" {
 		user.Institution = body.Institution
 	}
+
 	if body.Position != "" {
 		user.Position = body.Position
 	}
+
 	if body.Role != "" && contains(validRoles, strings.ToLower(body.Role)) {
 		user.Role = strings.ToLower(body.Role)
 	}
+
 	if body.Status != "" && contains(validStatuses, strings.ToLower(body.Status)) {
 		user.Status = strings.ToLower(body.Status)
 	}
 
 	// Hash new password if provided
 	if body.Password != "" {
-		hashed, err := bcrypt.GenerateFromPassword([]byte(body.Password), bcrypt.DefaultCost)
+
+		hashed, err := bcrypt.GenerateFromPassword(
+			[]byte(body.Password),
+			bcrypt.DefaultCost,
+		)
+
 		if err != nil {
 			return c.Status(fiber.StatusInternalServerError).JSON(response.ResponseModel{
 				RetCode: "500",
 				Message: "Failed to hash password",
 			})
 		}
+
 		user.Password = string(hashed)
 	}
 
@@ -160,6 +212,34 @@ func UpdateUserProfile(c *fiber.Ctx) error {
 			RetCode: "500",
 			Message: "Failed to update user",
 		})
+	}
+
+	// ✅ Send status notification only if status changed
+	if oldStatus != user.Status {
+
+		fullName := user.FirstName + " " + user.LastName
+
+		switch user.Status {
+
+		case "approved":
+
+			if user.Email != "" {
+				go services.SendAccountApprovedNotification(
+					user.Email,
+					fullName,
+					user.Role,
+				)
+			}
+
+		case "rejected":
+
+			if user.Email != "" {
+				go services.SendAccountRejectedNotification(
+					user.Email,
+					fullName,
+				)
+			}
+		}
 	}
 
 	return c.Status(fiber.StatusOK).JSON(response.ResponseModel{

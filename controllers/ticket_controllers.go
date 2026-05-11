@@ -671,6 +671,7 @@ func CreateTicketRemark(c *fiber.Ctx) error {
 		})
 	}
 
+	// Create remark
 	remark := models.TicketRemark{
 		RemarkID:  uuid.New().String(),
 		TicketID:  input.TicketID,
@@ -686,6 +687,53 @@ func CreateTicketRemark(c *fiber.Ctx) error {
 			RetCode: "500",
 			Message: "Failed to create remark",
 		})
+	}
+
+	// ================================
+	// ✅ FETCH TICKET (to get submitter)
+	// ================================
+	var ticket models.CreateTicket
+	if err := middleware.DBConn.
+		Where("ticket_id = ?", input.TicketID).
+		First(&ticket).Error; err != nil {
+
+		log.Println("Ticket not found for remark email:", err)
+	} else {
+
+		// ================================
+		// ✅ FETCH SUBMITTER
+		// ================================
+		var submitter models.UserAccount
+		if err := middleware.DBConn.
+			Where("username = ?", ticket.Username).
+			First(&submitter).Error; err != nil {
+
+			log.Println("Submitter not found:", err)
+
+		} else {
+
+			// ================================
+			// ✅ SEND EMAIL TO SUBMITTER
+			// ================================
+			if submitter.Email != "" {
+
+				fullName := submitter.FirstName + " " + submitter.LastName
+
+				go func() {
+					err := services.SendTicketRemarkNotification(
+						submitter.Email,
+						fullName,
+						ticket,
+						remark.Message,
+						input.Username, // who commented
+					)
+
+					if err != nil {
+						log.Println("Failed to send remark email:", err)
+					}
+				}()
+			}
+		}
 	}
 
 	return c.Status(fiber.StatusOK).JSON(response.ResponseModel{
