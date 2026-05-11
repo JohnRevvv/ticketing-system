@@ -84,7 +84,8 @@ func UpdateUserProfile(c *fiber.Ctx) error {
 	userID := c.Params("id")
 
 	var body struct {
-		FullName string `json:"full_name"`
+		FirstName string `json:"first_name"`
+		LastName string `json:"last_name"`
 		Email    string `json:"email"`
 		Password string `json:"password"`
 		Position string `json:"position"`
@@ -121,8 +122,8 @@ func UpdateUserProfile(c *fiber.Ctx) error {
 	}
 
 	// Update fields if provided
-	if body.FullName != "" {
-		user.FullName = body.FullName
+	if body.FirstName != "" {
+		user.FirstName = body.FirstName
 	}
 	if body.Position != "" {
 		user.Position = body.Position

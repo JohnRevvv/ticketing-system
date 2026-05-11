@@ -16,21 +16,6 @@ import (
 var s3Client *s3.Client
 var bucketName string
 
-// ✅ INIT S3 for access key
-// func InitS3() error {
-// 	cfg, err := config.LoadDefaultConfig(context.TODO(),
-// 		config.WithRegion(os.Getenv("AWS_REGION")),
-// 	)
-// 	if err != nil {
-// 		return err
-// 	}
-
-// 	s3Client = s3.NewFromConfig(cfg)
-// 	bucketName = os.Getenv("AWS_S3_BUCKET")
-
-// 	return nil
-// }
-
 func InitS3() error {
 	cfg, err := config.LoadDefaultConfig(context.TODO(),
 		config.WithRegion(os.Getenv("AWS_REGION")),

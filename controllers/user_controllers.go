@@ -17,7 +17,8 @@ func Register(c *fiber.Ctx) error {
 	var body struct {
 		Username    string `json:"username"`
 		Password    string `json:"password"`
-		FullName    string `json:"full_name"`
+		FirstName   string `json:"first_name"`
+		LastName    string `json:"last_name"`
 		Position    string `json:"position"`
 		Email       string `json:"email"`
 		Institution string `json:"institution"`
@@ -59,7 +60,8 @@ func Register(c *fiber.Ctx) error {
 	user := models.UserAccount{
 		Username:    body.Username,
 		Password:    string(hashedPassword),
-		FullName:    body.FullName,
+		FirstName:    body.FirstName,
+		LastName:    body.LastName,
 		Email:       body.Email,
 		Position:    body.Position,
 		Institution: body.Institution,
@@ -251,7 +253,7 @@ func EndorseTicket(c *fiber.Ctx) error {
 				go services.SendApproverNotification(
 					ticket,
 					approver.Email,
-					approver.FullName,
+					approver.FirstName + approver.LastName,
 				)
 			}
 		}

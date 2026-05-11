@@ -290,6 +290,7 @@ func SendApproverNotification(ticket models.CreateTicket, toEmail string, fullNa
 }
     .btn:hover {
       background-color: #0056b3;
+}
     .footer {
       margin-top: 25px;
       font-size: 12px;
@@ -481,7 +482,7 @@ func SendResolverNotification(ticket models.CreateTicket, resolverUsername strin
 	return err
 }
 
-func SendResolvedNotification(ticket models.CreateTicket, submitterName string, toEmail string, resolverName string,) error {
+func SendResolvedNotification(ticket models.CreateTicket, submitterName string, toEmail string, resolverName string) error {
 	from := os.Getenv("EMAIL_ADDRESS")
 	password := os.Getenv("EMAIL_PASSWORD")
 	smtpHost := os.Getenv("SMTP_HOST")

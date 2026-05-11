@@ -10,6 +10,7 @@ type CreateTicket struct {
 	Institution       string     `json:"institution"`
 	Tickettype        string     `json:"tickettype"`
 	Description       string     `json:"description"`
+	DateNeed          *time.Time `json:"dateneed"` //new added
 	Priority          string     `json:"priority"`
 	Assignee          string     `json:"assignee"`
 	Endorser          string     `json:"endorser"`
@@ -20,7 +21,7 @@ type CreateTicket struct {
 	CancelledBy       string     `json:"cancelled_by"`
 	CancelledAt       *time.Time `json:"cancelled_at"`
 	StartedAt         *time.Time `json:"started_at"`
-	ResolvedAt        *time.Time `json:"resolved_at"`
+	ResolvedAt        *time.Time `json:"resolved_at"` 
 	ResolutionMinutes float64    `json:"resolution_minutes"`
 	ResolutionTime    string     `json:"resolution_time" gorm:"column:resolution_time;default:''"`
 	OnHold            bool       `json:"onhold" gorm:"column:on_hold;default:false"`
