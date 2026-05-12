@@ -365,102 +365,18 @@ func GetTicketByID(c *fiber.Ctx) error {
 		})
 	}
 
-	// 🔹 Collect usernames
-	usernames := []string{
-		ticket.Approver,
-		ticket.Endorser,
-		ticket.Assignee,
-	}
-
-	// remove empty values (best practice)
-	cleaned := []string{}
-	for _, u := range usernames {
-		if u != "" {
-			cleaned = append(cleaned, u)
-		}
-	}
-
-	// 🔹 Fetch users in one query
-	var users []models.UserAccount
-	if len(cleaned) > 0 {
-		if err := middleware.DBConn.
-			Where("username IN ?", cleaned).
-			Find(&users).Error; err != nil {
-
-			return c.Status(fiber.StatusInternalServerError).JSON(response.ResponseModel{
-				RetCode: "500",
-				Message: "Failed to fetch user details",
-			})
-		}
-	}
-
-	// 🔹 Map username -> full name
-	userMap := make(map[string]string)
-	for _, u := range users {
-		userMap[u.Username] = u.FirstName + " " + u.LastName
-	}
-
-	// 🔹 Build response with full names
-	result := fiber.Map{
-		"ticket":      ticket,
-		"attachments": attachments,
-		"approver_name": func() string {
-			return userMap[ticket.Approver]
-		}(),
-		"endorser_name": func() string {
-			return userMap[ticket.Endorser]
-		}(),
-		"resolver_name": func() string {
-			return userMap[ticket.Assignee]
-		}(),
-	}
+	// 🔹 NO MORE LOCAL PATH FIXING
+	// Just return the S3 URL as-is
 
 	return c.Status(fiber.StatusOK).JSON(response.ResponseModel{
 		RetCode: "200",
 		Message: "Ticket fetched successfully",
-		Data:    result,
+		Data: fiber.Map{
+			"ticket":      ticket,
+			"attachments": attachments,
+		},
 	})
 }
-
-// func GetTicketByID(c *fiber.Ctx) error {
-// 	ticketID := c.Params("id")
-
-// 	// 🔹 Get ticket
-// 	var ticket models.CreateTicket
-// 	if err := middleware.DBConn.
-// 		Where("ticket_id = ?", ticketID).
-// 		First(&ticket).Error; err != nil {
-
-// 		return c.Status(fiber.StatusNotFound).JSON(response.ResponseModel{
-// 			RetCode: "404",
-// 			Message: "Ticket not found",
-// 		})
-// 	}
-
-// 	// 🔹 Get attachments
-// 	var attachments []models.TicketAttachment
-// 	if err := middleware.DBConn.
-// 		Where("ticket_id = ?", ticketID).
-// 		Find(&attachments).Error; err != nil {
-
-// 		return c.Status(fiber.StatusInternalServerError).JSON(response.ResponseModel{
-// 			RetCode: "500",
-// 			Message: "Failed to fetch attachments",
-// 		})
-// 	}
-
-// 	// 🔹 NO MORE LOCAL PATH FIXING
-// 	// Just return the S3 URL as-is
-
-// 	return c.Status(fiber.StatusOK).JSON(response.ResponseModel{
-// 		RetCode: "200",
-// 		Message: "Ticket fetched successfully",
-// 		Data: fiber.Map{
-// 			"ticket":      ticket,
-// 			"attachments": attachments,
-// 		},
-// 	})
-// }
 
 func ViewAttachment(c *fiber.Ctx) error {
 	attachmentID := c.Params("id")
