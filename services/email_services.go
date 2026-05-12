@@ -495,7 +495,7 @@ func SendEndorsedNotification(ticket models.CreateTicket, submitterName string, 
 
 	auth := smtp.PlainAuth("", from, password, smtpHost)
 
-	subject := "📌 Your Ticket Has Been Endorsed"
+	subject := "Your Ticket Has Been Endorsed"
 
 	body := fmt.Sprintf(`
 <!DOCTYPE html>
@@ -575,7 +575,7 @@ func SendEndorsedNotification(ticket models.CreateTicket, submitterName string, 
   <div class="container">
 
     <div class="header">
-      <h2>📌 Ticket Endorsed</h2>
+      <h2>Ticket Endorsed</h2>
       <p>Your ticket has been endorsed and forwarded for approval.</p>
     </div>
 
@@ -641,7 +641,7 @@ func SendApprovedNotification(ticket models.CreateTicket, submitterName string, 
 
 	auth := smtp.PlainAuth("", from, password, smtpHost)
 
-	subject := "✅ Your Ticket Has Been Approved"
+	subject := "Your Ticket Has Been Approved"
 
 	body := fmt.Sprintf(`
 <!DOCTYPE html>
