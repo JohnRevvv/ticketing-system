@@ -466,7 +466,7 @@ func SendResolverNotification(ticket models.CreateTicket, resolverUsername strin
 
 </body>
 </html>
-`, resolverUsername, ticket.TicketID, ticket.Subject, ticket.Category, ticket.Priority, ticket.Username, ticket.Approver)
+`, resolverUsername, ticket.TicketID, ticket.Subject, ticket.Category, ticket.Priority, submitterName, ticket.Approver)
 
 	msg := []byte(
 		"Subject: " + subject + "\r\n" +
