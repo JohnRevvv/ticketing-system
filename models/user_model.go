@@ -5,17 +5,17 @@ import (
 )
 
 type UserAccount struct {
-	UserID      uint   `gorm:"primaryKey" json:"user_id"`
-	Username    string `gorm:"unique;not null" json:"username"`
-	Password    string `json:"password"`
-	FirstName   string `json:"first_name"`
-	LastName    string `json:"last_name"`
-	Email       string `gorm:"unique" json:"email"`
-	Position    string `json:"position"`
-	Institution string `json:"institution"`
-	Role        string `gorm:"default:'user'" json:"role"`
-	Status      string `gorm:"default:'active'" json:"status"`
-	CreatedAt   time.Time
+	UserID      uint      `gorm:"primaryKey" json:"user_id"`
+	Username    string    `gorm:"unique;not null" json:"username"`
+	Password    string    `gorm:"not null" json:"password"`
+	FirstName   string    `gorm:"not null" json:"first_name"`
+	LastName    string    `gorm:"not null" json:"last_name"`
+	Email       string    `gorm:"unique;not null" json:"email"`
+	Position    string    `gorm:"not null" json:"position"`
+	Institution string    `gorm:"not null" json:"institution"`
+	Role        string    `gorm:"default:'user';not null" json:"role"`
+	Status      string    `gorm:"default:'active';not null" json:"status"`
+	CreatedAt   time.Time `json:"created_at"`
 }
 
 func (UserAccount) TableName() string {

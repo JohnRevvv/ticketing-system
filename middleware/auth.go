@@ -25,7 +25,8 @@ func GenerateJWT(ID uint) (string, error) {
 
 	claims := token.Claims.(jwt.MapClaims)
 	claims["id"] = ID
-	claims["exp"] = time.Now().Add(time.Hour * 72).Unix()
+	claims["exp"] = time.Now().Add(time.Hour * 12).Unix()
+	// claims["exp"] = time.Now().Add(30 * time.Minute).Unix()
 
 	return token.SignedString(getSecret())
 }

@@ -112,7 +112,7 @@ func SendEndorserNotification(ticket models.CreateTicket, toEmail string) error 
 
 	auth := smtp.PlainAuth("", from, password, smtpHost)
 
-	subject := "🔔 New Ticket For Endorsement 🔔"
+	subject := "New Ticket For Endorsement"
 
 	body := fmt.Sprintf(`
 <!DOCTYPE html>
@@ -239,7 +239,7 @@ func SendApproverNotification(ticket models.CreateTicket, toEmail string, fullNa
 
 	auth := smtp.PlainAuth("", from, password, smtpHost)
 
-	subject := "🔔 Ticket Ready for Approval 🔔"
+	subject := "Ticket Ready for Approval"
 
 	body := fmt.Sprintf(`
 <!DOCTYPE html>
@@ -354,14 +354,14 @@ func SendApproverNotification(ticket models.CreateTicket, toEmail string, fullNa
 }
 
 // ticket.Assignee is still empty at approval time.
-func SendResolverNotification(ticket models.CreateTicket, resolverUsername string, toEmail string) error {
+func SendResolverNotification(ticket models.CreateTicket, resolverUsername string, toEmail string, submitterName string) error {
 	from := os.Getenv("EMAIL_ADDRESS")
 	password := os.Getenv("EMAIL_PASSWORD")
 	smtpHost := os.Getenv("SMTP_HOST")
 
 	auth := smtp.PlainAuth("", from, password, smtpHost)
 
-	subject := "🔔 Ticket Available for Resolution 🔔"
+	subject := "Ticket Available for Resolution"
 
 	body := fmt.Sprintf(`
 <!DOCTYPE html>
@@ -441,7 +441,7 @@ func SendResolverNotification(ticket models.CreateTicket, resolverUsername strin
   <div class="container">
 
     <div class="header">
-      <h2>🔔 Ticket Ready for Resolution</h2>
+      <h2>Ticket Ready for Resolution</h2>
       <p>A new ticket has been assigned to you.</p>
     </div>
 
@@ -451,6 +451,7 @@ func SendResolverNotification(ticket models.CreateTicket, resolverUsername strin
       <p><span class="label">Subject:</span> <span class="value">%s</span></p>
       <p><span class="label">Category:</span> <span class="value">%s</span></p>
       <p><span class="label">Priority:</span> <span class="priority">%s</span></p>
+      <p><span class="label">Submitter:</span> <span class="value">%s</span></p>
       <p><span class="label">Approved By:</span> <span class="value">%s</span></p>
     </div>
 
@@ -465,7 +466,7 @@ func SendResolverNotification(ticket models.CreateTicket, resolverUsername strin
 
 </body>
 </html>
-`, resolverUsername, ticket.TicketID, ticket.Subject, ticket.Category, ticket.Priority, ticket.Approver)
+`, resolverUsername, ticket.TicketID, ticket.Subject, ticket.Category, ticket.Priority, ticket.Username, ticket.Approver)
 
 	msg := []byte(
 		"Subject: " + subject + "\r\n" +
@@ -720,7 +721,7 @@ func SendApprovedNotification(ticket models.CreateTicket, submitterName string, 
   <div class="container">
 
     <div class="header">
-      <h2>✅ Ticket Approved</h2>
+      <h2>Ticket Approved</h2>
       <p>Your ticket has been approved and is now waiting for assignment.</p>
     </div>
 
@@ -785,7 +786,7 @@ func SendResolvedNotification(ticket models.CreateTicket, submitterName string, 
 
 	auth := smtp.PlainAuth("", from, password, smtpHost)
 
-	subject := "✅ Your Ticket Has Been Resolved"
+	subject := "Your Ticket Has Been Resolved"
 
 	body := fmt.Sprintf(`
 <!DOCTYPE html>
@@ -865,7 +866,7 @@ func SendResolvedNotification(ticket models.CreateTicket, submitterName string, 
   <div class="container">
 
     <div class="header">
-      <h2>✅ Ticket Resolved</h2>
+      <h2>Ticket Resolved</h2>
       <p>Your request has been successfully completed.</p>
     </div>
 
@@ -908,7 +909,7 @@ func SendResolvedNotification(ticket models.CreateTicket, submitterName string, 
 }
 
 // ==============================
-//      Account Status
+//        Account Status
 // ==============================
 
 func SendAccountApprovedNotification(toEmail string, fullName string, role string) error {
@@ -1065,7 +1066,7 @@ func SendTicketRemark1Notification(toEmail string, submitterName string, ticket 
 
 	auth := smtp.PlainAuth("", from, password, smtpHost)
 
-	subject := "💬 New Remark on Your Ticket"
+	subject := "New Remark on Your Ticket"
 
 	body := fmt.Sprintf(`
 <!DOCTYPE html>
@@ -1077,7 +1078,7 @@ func SendTicketRemark1Notification(toEmail string, submitterName string, ticket 
 
 <div style="max-width:600px; margin:auto; background:#fff; padding:25px; border-radius:10px;">
 
-<h2 style="color:#007bff;">💬 New Ticket Remark</h2>
+<h2 style="color:#007bff;">New Ticket Remark</h2>
 
 <p>Hello <b>%s</b>,</p>
 
@@ -1132,7 +1133,7 @@ func SendTicketRemarkNotification(toEmail string, submitterName string, ticket m
 
 	auth := smtp.PlainAuth("", from, password, smtpHost)
 
-	subject := "💬 New Remark on Your Ticket"
+	subject := "New Remark on Your Ticket"
 
 	body := fmt.Sprintf(`
 <!DOCTYPE html>

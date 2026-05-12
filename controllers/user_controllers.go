@@ -31,9 +31,28 @@ func Register(c *fiber.Ctx) error {
 		})
 	}
 
+	// Validate required fields
+	if body.Username == "" ||
+		body.Password == "" ||
+		body.FirstName == "" ||
+		body.LastName == "" ||
+		body.Position == "" ||
+		body.Email == "" ||
+		body.Institution == "" {
+
+		return c.Status(fiber.StatusBadRequest).JSON(response.ResponseModel{
+			RetCode: "400",
+			Message: "All fields are required",
+		})
+	}
+
 	// Check if username already exists
 	var existingUser models.UserAccount
-	if err := middleware.DBConn.Where("username = ?", body.Username).First(&existingUser).Error; err == nil {
+
+	if err := middleware.DBConn.
+		Where("username = ?", body.Username).
+		First(&existingUser).Error; err == nil {
+
 		return c.Status(fiber.StatusConflict).JSON(response.ResponseModel{
 			RetCode: "409",
 			Message: "Username already exists",
@@ -41,15 +60,22 @@ func Register(c *fiber.Ctx) error {
 	}
 
 	// Check if email already exists
-	if err := middleware.DBConn.Where("email = ?", body.Email).First(&existingUser).Error; err == nil {
+	if err := middleware.DBConn.
+		Where("email = ?", body.Email).
+		First(&existingUser).Error; err == nil {
+
 		return c.Status(fiber.StatusConflict).JSON(response.ResponseModel{
 			RetCode: "409",
 			Message: "Email already exists",
 		})
 	}
 
-	// Hash the password
-	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(body.Password), bcrypt.DefaultCost)
+	// Hash password
+	hashedPassword, err := bcrypt.GenerateFromPassword(
+		[]byte(body.Password),
+		bcrypt.DefaultCost,
+	)
+
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(response.ResponseModel{
 			RetCode: "500",
@@ -286,9 +312,6 @@ func EndorseTicket(c *fiber.Ctx) error {
 	})
 }
 
-// ── Replace ONLY the ApproveTicket function in your user controller ──────────
-// The rest of the file stays exactly the same.
-
 func ApproveTicket(c *fiber.Ctx) error {
 	ticketID := c.Params("id")
 
@@ -320,7 +343,10 @@ func ApproveTicket(c *fiber.Ctx) error {
 
 	// Get ticket
 	var ticket models.CreateTicket
-	if err := middleware.DBConn.Where("ticket_id = ?", ticketID).First(&ticket).Error; err != nil {
+	if err := middleware.DBConn.
+		Where("ticket_id = ?", ticketID).
+		First(&ticket).Error; err != nil {
+
 		return c.Status(fiber.StatusNotFound).JSON(response.ResponseModel{
 			RetCode: "404",
 			Message: "Ticket not found",
@@ -348,30 +374,85 @@ func ApproveTicket(c *fiber.Ctx) error {
 		"status":   "for assignment",
 		"approver": user.Username,
 	}).Error; err != nil {
+
 		return c.Status(fiber.StatusInternalServerError).JSON(response.ResponseModel{
 			RetCode: "500",
 			Message: "Failed to update ticket",
 		})
 	}
 
-	// ── Send email to every resolver ─────────────────────────────────────────
-	// FIX: pass r.Username so each resolver gets a personalised greeting
-	// instead of the empty ticket.Assignee field.
+	// =========================================
+	// ✅ FETCH SUBMITTER
+	// =========================================
+	var submitter models.UserAccount
+
+	if err := middleware.DBConn.
+		Where("username = ?", ticket.Username).
+		First(&submitter).Error; err != nil {
+
+		log.Println("Failed to fetch submitter:", err)
+	}
+
+	submitterName := submitter.FirstName + " " + submitter.LastName
+
+	// =========================================
+	// ✅ SEND EMAIL TO RESOLVERS
+	// =========================================
 	var resolvers []models.UserAccount
-	if err := middleware.DBConn.Where("role = ?", "resolver").Find(&resolvers).Error; err != nil {
+
+	if err := middleware.DBConn.
+		Where("role = ?", "resolver").
+		Find(&resolvers).Error; err != nil {
+
 		log.Println("Failed to fetch resolvers:", err)
 	}
 
 	for _, r := range resolvers {
+
+		r := r // capture loop variable safely
+
 		if r.Email != "" {
-			resolverUsername := r.Username // capture loop variable for goroutine
-			resolverEmail := r.Email
+
 			go func() {
-				if err := services.SendResolverNotification(ticket, resolverUsername, resolverEmail); err != nil {
-					log.Println("Failed to send resolver email to", resolverEmail, ":", err)
+
+				if err := services.SendResolverNotification(
+					ticket,
+					r.Username,
+					r.Email,
+					submitterName,
+				); err != nil {
+
+					log.Println(
+						"Failed to send resolver email to",
+						r.Email,
+						":",
+						err,
+					)
 				}
+
 			}()
 		}
+	}
+
+	// =========================================
+	// ✅ NOTIFY SUBMITTER
+	// =========================================
+	if submitter.Email != "" {
+
+		go func() {
+
+			err := services.SendApprovedNotification(
+				ticket,
+				submitterName,
+				submitter.Email,
+				user.FirstName+" "+user.LastName,
+			)
+
+			if err != nil {
+				log.Println("Failed to send submitter approval email:", err)
+			}
+
+		}()
 	}
 
 	return c.Status(fiber.StatusOK).JSON(response.ResponseModel{
@@ -380,10 +461,6 @@ func ApproveTicket(c *fiber.Ctx) error {
 		Data:    ticket,
 	})
 }
-
-// ── REPLACE your CancelTicket function with this ────────────────────────────
-// Now allows the ticket CREATOR (any role) to cancel their own ticket,
-// in addition to the existing role-based rules.
 
 func CancelTicket(c *fiber.Ctx) error {
 	ticketID := c.Params("id")

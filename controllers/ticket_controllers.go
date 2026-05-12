@@ -671,6 +671,28 @@ func CreateTicketRemark(c *fiber.Ctx) error {
 		})
 	}
 
+	// ================================
+	// ✅ FETCH TICKET
+	// ================================
+	var ticket models.CreateTicket
+	if err := middleware.DBConn.
+		Where("ticket_id = ?", input.TicketID).
+		First(&ticket).Error; err != nil {
+
+		return c.Status(fiber.StatusNotFound).JSON(response.ResponseModel{
+			RetCode: "404",
+			Message: "Ticket not found",
+		})
+	}
+
+	// 🚫 DISABLE REMARKS IF CLOSED
+	if ticket.Status == "closed" {
+		return c.Status(fiber.StatusBadRequest).JSON(response.ResponseModel{
+			RetCode: "400",
+			Message: "Cannot add remarks because this ticket is already closed",
+		})
+	}
+
 	// Create remark
 	remark := models.TicketRemark{
 		RemarkID:  uuid.New().String(),
@@ -690,49 +712,37 @@ func CreateTicketRemark(c *fiber.Ctx) error {
 	}
 
 	// ================================
-	// ✅ FETCH TICKET (to get submitter)
+	// ✅ FETCH SUBMITTER
 	// ================================
-	var ticket models.CreateTicket
+	var submitter models.UserAccount
 	if err := middleware.DBConn.
-		Where("ticket_id = ?", input.TicketID).
-		First(&ticket).Error; err != nil {
+		Where("username = ?", ticket.Username).
+		First(&submitter).Error; err != nil {
 
-		log.Println("Ticket not found for remark email:", err)
+		log.Println("Submitter not found:", err)
+
 	} else {
 
 		// ================================
-		// ✅ FETCH SUBMITTER
+		// ✅ SEND EMAIL TO SUBMITTER
 		// ================================
-		var submitter models.UserAccount
-		if err := middleware.DBConn.
-			Where("username = ?", ticket.Username).
-			First(&submitter).Error; err != nil {
+		if submitter.Email != "" {
 
-			log.Println("Submitter not found:", err)
+			fullName := submitter.FirstName + " " + submitter.LastName
 
-		} else {
+			go func() {
+				err := services.SendTicketRemarkNotification(
+					submitter.Email,
+					fullName,
+					ticket,
+					remark.Message,
+					input.Username,
+				)
 
-			// ================================
-			// ✅ SEND EMAIL TO SUBMITTER
-			// ================================
-			if submitter.Email != "" {
-
-				fullName := submitter.FirstName + " " + submitter.LastName
-
-				go func() {
-					err := services.SendTicketRemarkNotification(
-						submitter.Email,
-						fullName,
-						ticket,
-						remark.Message,
-						input.Username, // who commented
-					)
-
-					if err != nil {
-						log.Println("Failed to send remark email:", err)
-					}
-				}()
-			}
+				if err != nil {
+					log.Println("Failed to send remark email:", err)
+				}
+			}()
 		}
 	}
 
@@ -782,6 +792,76 @@ func GetRemarksByTicket(c *fiber.Ctx) error {
 		RetCode: "200",
 		Message: "Remarks fetched successfully",
 		Data:    responseData,
+	})
+}
+
+func CloseTicket(c *fiber.Ctx) error {
+	ticketID := c.Params("id")
+
+	// 🔐 Get user from JWT
+	userID, err := middleware.GetUserIDFromJWT(c)
+	if err != nil {
+		return c.Status(fiber.StatusUnauthorized).JSON(response.ResponseModel{
+			RetCode: "401",
+			Message: "Unauthorized",
+		})
+	}
+
+	// 👤 Get user info
+	var user models.UserAccount
+	if err := middleware.DBConn.First(&user, userID).Error; err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(response.ResponseModel{
+			RetCode: "500",
+			Message: "Failed to fetch user",
+		})
+	}
+
+	// 🎫 Get ticket
+	var ticket models.CreateTicket
+	if err := middleware.DBConn.Where("ticket_id = ?", ticketID).First(&ticket).Error; err != nil {
+		return c.Status(fiber.StatusNotFound).JSON(response.ResponseModel{
+			RetCode: "404",
+			Message: "Ticket not found",
+		})
+	}
+
+	// ⚠️ Only resolved tickets can be closed
+	if ticket.Status != "resolved" {
+		return c.Status(fiber.StatusBadRequest).JSON(response.ResponseModel{
+			RetCode: "400",
+			Message: "Only resolved tickets can be closed",
+		})
+	}
+
+	// 🔒 Optional:
+	// Only submitter or admin can close the ticket
+	if user.Username != ticket.Username && user.Role != "admin" {
+		return c.Status(fiber.StatusForbidden).JSON(response.ResponseModel{
+			RetCode: "403",
+			Message: "You are not allowed to close this ticket",
+		})
+	}
+
+	now := time.Now()
+
+	// 💾 Update ticket
+	if err := middleware.DBConn.Model(&ticket).Updates(map[string]interface{}{
+		"status":    "closed",
+		"closed_at": now,
+	}).Error; err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(response.ResponseModel{
+			RetCode: "500",
+			Message: "Failed to close ticket",
+		})
+	}
+
+	// ✅ RESPONSE
+	return c.Status(fiber.StatusOK).JSON(response.ResponseModel{
+		RetCode: "200",
+		Message: "Ticket closed successfully",
+		Data: fiber.Map{
+			"ticket": ticket,
+		},
 	})
 }
 
