@@ -61,3 +61,5 @@ type TicketRemark struct {
 func (TicketRemark) TableName() string {
 	return "ticketremark"
 }
+ 
+//test
