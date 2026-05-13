@@ -33,7 +33,8 @@ func AutoCloseResolvedTickets() {
 	var tickets []models.CreateTicket
 
 	// 🕒 7 days cutoff
-	cutoff := time.Now().AddDate(0, 0, -7)
+	cutoff := time.Now().Add(-10 * time.Minute)
+	// cutoff := time.Now().AddDate(0, 0, -7)
 
 	// 🔍 Find resolved tickets older than 7 days and not yet closed
 	if err := middleware.DBConn.
