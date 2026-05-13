@@ -15,6 +15,7 @@ import (
 )
 
 func main() {
+
 	// Load .env
 	if err := godotenv.Load(); err != nil {
 		log.Println("⚠️ No .env file found")
@@ -31,6 +32,8 @@ func main() {
 	if err := services.InitS3(); err != nil {
 		log.Fatal("❌ Failed to initialize S3:", err)
 	}
+
+	services.StartTicketAutoCloser()
 
 	// Fiber app
 	app := fiber.New()
