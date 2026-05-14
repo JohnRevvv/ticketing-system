@@ -762,7 +762,7 @@ func ResolveTicket(c *fiber.Ctx) error {
 		})
 	}
 
-	// 👤 Get user info
+	// 👤 Get resolver info
 	var user models.UserAccount
 	if err := middleware.DBConn.First(&user, userID).Error; err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(response.ResponseModel{
@@ -781,7 +781,10 @@ func ResolveTicket(c *fiber.Ctx) error {
 
 	// 🎫 Get ticket
 	var ticket models.CreateTicket
-	if err := middleware.DBConn.Where("ticket_id = ?", ticketID).First(&ticket).Error; err != nil {
+	if err := middleware.DBConn.
+		Where("ticket_id = ?", ticketID).
+		First(&ticket).Error; err != nil {
+
 		return c.Status(fiber.StatusNotFound).JSON(response.ResponseModel{
 			RetCode: "404",
 			Message: "Ticket not found",
@@ -804,58 +807,104 @@ func ResolveTicket(c *fiber.Ctx) error {
 		})
 	}
 
-	// ✅ Calculate net working duration (wall time − hold time)
+	// ✅ Calculate net working duration
 	now := time.Now()
+
 	var wallDuration time.Duration
+
 	if ticket.StartedAt != nil {
 		wallDuration = now.Sub(*ticket.StartedAt)
 	} else {
 		wallDuration = now.Sub(ticket.CreatedAt)
 	}
 
-	// Subtract accumulated hold seconds
+	// Subtract hold duration
 	holdSeconds := ticket.TotalHoldSeconds
+
 	if ticket.OnHold && ticket.HoldStartedAt != nil {
 		holdSeconds += now.Sub(*ticket.HoldStartedAt).Seconds()
 	}
+
 	netDuration := wallDuration - time.Duration(holdSeconds)*time.Second
+
 	if netDuration < 0 {
 		netDuration = 0
 	}
 
 	resolutionStr := humanDuration(netDuration)
 
-	// 💾 Update DB
+	// ============================================
+	// UPDATE TICKET
+	// ============================================
 	if err := middleware.DBConn.Model(&ticket).Updates(map[string]interface{}{
 		"status":             "resolved",
 		"resolved_at":        now,
-		"resolution_minutes": netDuration.Minutes(), // clean net minutes, no hold
-		"resolution_time":    resolutionStr,         // ← add this
+		"resolution_minutes": netDuration.Minutes(),
+		"resolution_time":    resolutionStr,
 	}).Error; err != nil {
+
 		return c.Status(fiber.StatusInternalServerError).JSON(response.ResponseModel{
 			RetCode: "500",
 			Message: "Failed to resolve ticket",
 		})
 	}
 
-	// 📧 SEND EMAIL
+	// ============================================
+	// FETCH SUBMITTER
+	// ============================================
 	var submitter models.UserAccount
+
 	if err := middleware.DBConn.
 		Where("username = ?", ticket.Username).
 		First(&submitter).Error; err != nil {
+
 		log.Println("❌ Could not find submitter:", err)
+
 	} else if submitter.Email != "" {
+
+		// ✅ Full names
+		submitterName := strings.TrimSpace(
+			submitter.FirstName + " " + submitter.LastName,
+		)
+
+		resolverName := strings.TrimSpace(
+			user.FirstName + " " + user.LastName,
+		)
+
 		log.Println("📧 Sending resolved email to:", submitter.Email)
-		go func(t models.CreateTicket, username, email, resolver string) {
-			if err := services.SendResolvedNotification(t, username, email, resolver); err != nil {
+
+		go func(
+			t models.CreateTicket,
+			submitterName string,
+			email string,
+			resolverName string,
+		) {
+
+			if err := services.SendResolvedNotification(
+				t,
+				submitterName,
+				email,
+				resolverName,
+			); err != nil {
+
 				log.Println("❌ Failed to send resolved email:", err)
+
 			} else {
+
 				log.Println("✅ Email sent to:", email)
 			}
-		}(ticket, submitter.Username, submitter.Email, user.Username)
+
+		}(
+			ticket,
+			submitterName,
+			submitter.Email,
+			resolverName,
+		)
 	}
 
-	// ✅ RESPONSE
+	// ============================================
+	// RESPONSE
+	// ============================================
 	return c.Status(fiber.StatusOK).JSON(response.ResponseModel{
 		RetCode: "200",
 		Message: "Ticket resolved successfully",

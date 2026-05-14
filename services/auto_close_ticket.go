@@ -3,6 +3,7 @@ package services
 import (
 	"log"
 	"time"
+
 	"ticketing-be-dev/middleware"
 	"ticketing-be-dev/models"
 
@@ -10,12 +11,22 @@ import (
 )
 
 func StartTicketAutoCloser() {
+
 	c := cron.New()
 
-	_, err := c.AddFunc("@daily", func() {
+	// ✅ Every minute
+	// _, err := c.AddFunc("* * * * *", func() {
+
+	// every day
+	_, err := c.AddFunc("0 0 * * *", func() {
+
+		log.Println("================================================")
+		log.Println("Running auto closer job...")
+		log.Println("Current time:", time.Now())
+
 		defer func() {
 			if r := recover(); r != nil {
-				log.Println("AutoCloser panic recovered:", r)
+				log.Println("Recovered panic:", r)
 			}
 		}()
 
@@ -23,31 +34,47 @@ func StartTicketAutoCloser() {
 	})
 
 	if err != nil {
-		log.Fatal("Failed to start cron:", err)
+		log.Fatal("Cron error:", err)
 	}
 
 	c.Start()
+
+	log.Println("✅ Ticket auto closer started")
 }
 
 func AutoCloseResolvedTickets() {
+
 	var tickets []models.CreateTicket
 
-	// 🕒 7 days cutoff
-	cutoff := time.Now().Add(-10 * time.Minute)
-	// cutoff := time.Now().AddDate(0, 0, -7)
+	// ✅ 1 minute ago
+	// cutoff := time.Now().Add(-1 * time.Minute)
 
-	// 🔍 Find resolved tickets older than 7 days and not yet closed
-	if err := middleware.DBConn.
-		Where("status = ? AND updated_at <= ?", "resolved", cutoff).
-		Find(&tickets).Error; err != nil {
-		log.Println("Failed to fetch resolved tickets:", err)
+	// 7 days
+	cutoff := time.Now().AddDate(0, 0, -7)
+
+	log.Println("Cutoff time:", cutoff)
+
+	// ✅ TEMPORARY TEST
+	// remove updated_at first to verify logic works
+	err := middleware.DBConn.
+		Where("status = ?", "resolved").
+		Find(&tickets).Error
+
+	if err != nil {
+		log.Println("DB query failed:", err)
 		return
 	}
+
+	log.Println("Resolved tickets found:", len(tickets))
 
 	now := time.Now()
 
 	for _, ticket := range tickets {
-		err := middleware.DBConn.Model(&models.CreateTicket{}).
+
+		log.Println("Closing ticket:", ticket.TicketID)
+
+		err := middleware.DBConn.
+			Model(&models.CreateTicket{}).
 			Where("ticket_id = ?", ticket.TicketID).
 			Updates(map[string]interface{}{
 				"status":    "closed",
@@ -55,10 +82,10 @@ func AutoCloseResolvedTickets() {
 			}).Error
 
 		if err != nil {
-			log.Println("Failed to auto-close ticket:", ticket.TicketID, err)
+			log.Println("Failed closing ticket:", ticket.TicketID, err)
 			continue
 		}
 
-		log.Println("Auto-closed ticket:", ticket.TicketID)
+		log.Println("✅ Ticket closed:", ticket.TicketID)
 	}
 }
