@@ -79,6 +79,11 @@ func CreateTicket(c *fiber.Ctx) error {
 
 	ticket.Username = user.Username
 
+	// Full name for email display
+	submitterFullName := strings.TrimSpace(
+		user.FirstName + " " + user.LastName,
+	)
+
 	// Save ticket
 	if err := tx.Create(&ticket).Error; err != nil {
 		tx.Rollback()
@@ -185,7 +190,7 @@ func CreateTicket(c *fiber.Ctx) error {
 
 	// Send email asynchronously
 	go func() {
-		if err := services.SendEndorserNotification(ticket, endorser.Email); err != nil {
+		if err := services.SendEndorserNotification(ticket, endorser.Email, submitterFullName); err != nil {
 			log.Println("Error sending endorser email:", err)
 		}
 	}()
@@ -339,10 +344,14 @@ func UpdateTicket(c *fiber.Ctx) error {
 	})
 }
 
+
+// fetching their full names instead of just username
 func GetTicketByID(c *fiber.Ctx) error {
 	ticketID := c.Params("id")
 
-	// 🔹 Get ticket
+	// ============================================
+	// GET TICKET
+	// ============================================
 	var ticket models.CreateTicket
 	if err := middleware.DBConn.
 		Where("ticket_id = ?", ticketID).
@@ -354,7 +363,31 @@ func GetTicketByID(c *fiber.Ctx) error {
 		})
 	}
 
-	// 🔹 Get attachments
+	// ============================================
+	// GET USERS (SUBMITTER, ENDORSER, APPROVER)
+	// ============================================
+	var submitter, endorser, approver models.UserAccount
+
+	middleware.DBConn.
+		Where("username = ?", ticket.Username).
+		First(&submitter)
+
+	middleware.DBConn.
+		Where("username = ?", ticket.Endorser).
+		First(&endorser)
+
+	middleware.DBConn.
+		Where("username = ?", ticket.Approver).
+		First(&approver)
+
+	// Convert to full names
+	submitterName := submitter.FirstName + " " + submitter.LastName
+	endorserName := endorser.FirstName + " " + endorser.LastName
+	approverName := approver.FirstName + " " + approver.LastName
+
+	// ============================================
+	// GET ATTACHMENTS
+	// ============================================
 	var attachments []models.TicketAttachment
 	if err := middleware.DBConn.
 		Where("ticket_id = ?", ticketID).
@@ -366,18 +399,63 @@ func GetTicketByID(c *fiber.Ctx) error {
 		})
 	}
 
-	// 🔹 NO MORE LOCAL PATH FIXING
-	// Just return the S3 URL as-is
-
+	// ============================================
+	// RESPONSE WITH FULL NAMES
+	// ============================================
 	return c.Status(fiber.StatusOK).JSON(response.ResponseModel{
 		RetCode: "200",
 		Message: "Ticket fetched successfully",
 		Data: fiber.Map{
-			"ticket":      ticket,
+			"ticket": ticket,
+			"people": fiber.Map{
+				"submitter": submitterName,
+				"endorser":  endorserName,
+				"approver":  approverName,
+			},
 			"attachments": attachments,
 		},
 	})
 }
+
+// func GetTicketByID(c *fiber.Ctx) error {
+// 	ticketID := c.Params("id")
+
+// 	// 🔹 Get ticket
+// 	var ticket models.CreateTicket
+// 	if err := middleware.DBConn.
+// 		Where("ticket_id = ?", ticketID).
+// 		First(&ticket).Error; err != nil {
+
+// 		return c.Status(fiber.StatusNotFound).JSON(response.ResponseModel{
+// 			RetCode: "404",
+// 			Message: "Ticket not found",
+// 		})
+// 	}
+
+// 	// 🔹 Get attachments
+// 	var attachments []models.TicketAttachment
+// 	if err := middleware.DBConn.
+// 		Where("ticket_id = ?", ticketID).
+// 		Find(&attachments).Error; err != nil {
+
+// 		return c.Status(fiber.StatusInternalServerError).JSON(response.ResponseModel{
+// 			RetCode: "500",
+// 			Message: "Failed to fetch attachments",
+// 		})
+// 	}
+
+// 	// 🔹 NO MORE LOCAL PATH FIXING
+// 	// Just return the S3 URL as-is
+
+// 	return c.Status(fiber.StatusOK).JSON(response.ResponseModel{
+// 		RetCode: "200",
+// 		Message: "Ticket fetched successfully",
+// 		Data: fiber.Map{
+// 			"ticket":      ticket,
+// 			"attachments": attachments,
+// 		},
+// 	})
+// }
 
 func ViewAttachment(c *fiber.Ctx) error {
 	attachmentID := c.Params("id")

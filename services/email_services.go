@@ -105,7 +105,7 @@ func SendPasswordResetSuccessEmail(toEmail string, username string) error {
 }
 
 // SendEndorserNotification — called on ticket creation
-func SendEndorserNotification(ticket models.CreateTicket, toEmail string) error {
+func SendEndorserNotification(ticket models.CreateTicket, toEmail string, submitterName string) error {
 	from := os.Getenv("EMAIL_ADDRESS")
 	password := os.Getenv("EMAIL_PASSWORD")
 	smtpHost := os.Getenv("SMTP_HOST")
@@ -214,7 +214,7 @@ func SendEndorserNotification(ticket models.CreateTicket, toEmail string) error 
   </div>
 </body>
 </html>
-`, ticket.TicketID, ticket.Subject, ticket.Category, ticket.Priority, ticket.Username)
+`, ticket.TicketID, ticket.Subject, ticket.Category, ticket.Priority, submitterName)
 
 	msg := []byte(
 		"Subject: " + subject + "\r\n" +
@@ -232,7 +232,7 @@ func SendEndorserNotification(ticket models.CreateTicket, toEmail string) error 
 }
 
 // SendApproverNotification — called after EndorseTicket succeeds
-func SendApproverNotification(ticket models.CreateTicket, toEmail string, fullName string) error {
+func SendApproverNotification(ticket models.CreateTicket, toEmail string, submitterName string, endorserName string, approverName string) error {
 	from := os.Getenv("EMAIL_ADDRESS")
 	password := os.Getenv("EMAIL_PASSWORD")
 	smtpHost := os.Getenv("SMTP_HOST")
@@ -315,6 +315,7 @@ func SendApproverNotification(ticket models.CreateTicket, toEmail string, fullNa
       <p><span class="label">Subject:</span> %s</p>
       <p><span class="label">Category:</span> %s</p>
       <p><span class="label">Priority:</span> %s</p>
+      <p><span class="label">Submitted By:</span> %s</p>
       <p><span class="label">Endorsed By:</span> %s</p>
     </div>
 
@@ -330,12 +331,13 @@ func SendApproverNotification(ticket models.CreateTicket, toEmail string, fullNa
 </body>
 </html>
 `,
-		fullName, // ✅ Hello name
+		approverName,
 		ticket.TicketID,
 		ticket.Subject,
 		ticket.Category,
 		ticket.Priority,
-		ticket.Endorser,
+		submitterName,
+		endorserName,
 	)
 
 	msg := []byte(
@@ -354,7 +356,7 @@ func SendApproverNotification(ticket models.CreateTicket, toEmail string, fullNa
 }
 
 // ticket.Assignee is still empty at approval time.
-func SendResolverNotification(ticket models.CreateTicket, resolverUsername string, toEmail string, submitterName string) error {
+func SendResolverNotification(ticket models.CreateTicket, resolverUsername string, toEmail string, submitterName string, endorserName string, approverName string) error {
 	from := os.Getenv("EMAIL_ADDRESS")
 	password := os.Getenv("EMAIL_PASSWORD")
 	smtpHost := os.Getenv("SMTP_HOST")
@@ -452,6 +454,7 @@ func SendResolverNotification(ticket models.CreateTicket, resolverUsername strin
       <p><span class="label">Category:</span> <span class="value">%s</span></p>
       <p><span class="label">Priority:</span> <span class="priority">%s</span></p>
       <p><span class="label">Submitter:</span> <span class="value">%s</span></p>
+      <p><span class="label">Endorsed By:</span> <span class="value">%s</span></p>
       <p><span class="label">Approved By:</span> <span class="value">%s</span></p>
     </div>
 
@@ -466,7 +469,7 @@ func SendResolverNotification(ticket models.CreateTicket, resolverUsername strin
 
 </body>
 </html>
-`, resolverUsername, ticket.TicketID, ticket.Subject, ticket.Category, ticket.Priority, submitterName, ticket.Approver)
+`, resolverUsername, ticket.TicketID, ticket.Subject, ticket.Category, ticket.Priority, submitterName, endorserName, approverName,)
 
 	msg := []byte(
 		"Subject: " + subject + "\r\n" +
@@ -990,7 +993,7 @@ This is an automated email.
 	return err
 }
 
-func SendAccountRejectedNotification(toEmail string,fullName string) error {
+func SendAccountRejectedNotification(toEmail string, fullName string) error {
 
 	from := os.Getenv("EMAIL_ADDRESS")
 	password := os.Getenv("EMAIL_PASSWORD")

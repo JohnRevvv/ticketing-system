@@ -8,8 +8,10 @@ type UserAccount struct {
 	UserID      uint      `gorm:"primaryKey" json:"user_id"`
 	Username    string    `gorm:"unique;not null" json:"username"`
 	Password    string    `gorm:"not null" json:"password"`
-	FirstName   string    `gorm:"not null" json:"first_name"`
-	LastName    string    `gorm:"not null" json:"last_name"`
+
+	FirstName   string    `json:"first_name"`
+	LastName    string    `json:"last_name"`
+
 	Email       string    `gorm:"unique;not null" json:"email"`
 	Position    string    `gorm:"not null" json:"position"`
 	Institution string    `gorm:"not null" json:"institution"`

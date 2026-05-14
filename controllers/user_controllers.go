@@ -3,6 +3,7 @@ package controllers
 import (
 	"fmt"
 	"log"
+	"strings"
 	"ticketing-be-dev/middleware"
 	"ticketing-be-dev/models"
 	"ticketing-be-dev/models/response"
@@ -208,9 +209,9 @@ func GetAllUsers(c *fiber.Ctx) error {
 }
 
 func EndorseTicket(c *fiber.Ctx) error {
-	ticketID := c.Params("id") // SR0000001
+	ticketID := c.Params("id")
 
-	// Get user ID from JWT
+	// Get user ID from JWT (endorser)
 	userID, err := middleware.GetUserIDFromJWT(c)
 	if err != nil {
 		return c.Status(fiber.StatusUnauthorized).JSON(response.ResponseModel{
@@ -219,90 +220,105 @@ func EndorseTicket(c *fiber.Ctx) error {
 		})
 	}
 
-	// Get user info
-	var user models.UserAccount
-	if err := middleware.DBConn.First(&user, userID).Error; err != nil {
+	// Endorser info
+	var endorser models.UserAccount
+	if err := middleware.DBConn.First(&endorser, userID).Error; err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(response.ResponseModel{
 			RetCode: "500",
 			Message: "Failed to fetch user",
 		})
 	}
 
-	// ✅ Check if user is endorser
-	if user.Role != "endorser" {
+	if endorser.Role != "endorser" {
 		return c.Status(fiber.StatusForbidden).JSON(response.ResponseModel{
 			RetCode: "403",
-			Message: "Access denied: Only endorsers can endorse tickets",
+			Message: "Access denied",
 		})
 	}
 
 	// Get ticket
 	var ticket models.CreateTicket
-	if err := middleware.DBConn.Where("ticket_id = ?", ticketID).First(&ticket).Error; err != nil {
+	if err := middleware.DBConn.
+		Where("ticket_id = ?", ticketID).
+		First(&ticket).Error; err != nil {
+
 		return c.Status(fiber.StatusNotFound).JSON(response.ResponseModel{
 			RetCode: "404",
 			Message: "Ticket not found",
 		})
 	}
 
-	// ✅ Check current status (optional but recommended)
 	if ticket.Status != "for endorsement" {
 		return c.Status(fiber.StatusBadRequest).JSON(response.ResponseModel{
 			RetCode: "400",
-			Message: "Ticket is not for endorsement",
+			Message: "Invalid status",
 		})
 	}
 
-	// ✅ Update status
-	// ✅ Update status
+	// Update ticket
 	ticket.Status = "for approval"
 	if err := middleware.DBConn.Save(&ticket).Error; err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(response.ResponseModel{
 			RetCode: "500",
-			Message: "Failed to update ticket",
+			Message: "Update failed",
 		})
 	}
 
-	// Get approver email
+	// ============================================
+	// GET SUBMITTER (FULL NAME ONLY)
+	// ============================================
+	var submitter models.UserAccount
+	middleware.DBConn.
+		Where("username = ?", ticket.Username).
+		First(&submitter)
+
+	submitterFullName := strings.TrimSpace(
+		submitter.FirstName + " " + submitter.LastName,
+	)
+
+	endorserFullName := strings.TrimSpace(
+		endorser.FirstName + " " + endorser.LastName,
+	)
+
+	// ============================================
+	// APPROVERS NOTIFICATION (FULL NAME FIXED)
+	// ============================================
 	var approvers []models.UserAccount
 	if err := middleware.DBConn.
 		Where("role = ?", "approver").
-		Find(&approvers).Error; err != nil {
-
-		log.Println("Failed to fetch approvers:", err)
-	} else {
+		Find(&approvers).Error; err == nil {
 
 		for _, approver := range approvers {
-			if approver.Email != "" {
 
-				// async email
-				go services.SendApproverNotification(
-					ticket,
-					approver.Email,
-					approver.FirstName+" "+approver.LastName,
-				)
+			if approver.Email == "" {
+				continue
 			}
+
+			approverFullName := strings.TrimSpace(
+				approver.FirstName + " " + approver.LastName,
+			)
+
+			go services.SendApproverNotification(
+				ticket,
+				approver.Email,
+				submitterFullName,
+				endorserFullName,
+				approverFullName,
+			)
 		}
 	}
 
-	// ✅ Get submitter info (CORRECT WAY)
-	var submitter models.UserAccount
-	if err := middleware.DBConn.
-		Where("username = ?", ticket.Username).
-		First(&submitter).Error; err != nil {
+	// ============================================
+	// SUBMITTER NOTIFICATION
+	// ============================================
+	if submitter.Email != "" {
 
-		log.Println("Submitter not found:", err)
-	} else {
-
-		// send email only if exists
-		if submitter.Email != "" {
-			go services.SendEndorsedNotification(
-				ticket,
-				submitter.FirstName+" "+submitter.LastName,
-				submitter.Email,
-				user.FirstName+" "+user.LastName,
-			)
-		}
+		go services.SendEndorsedNotification(
+			ticket,
+			submitterFullName,
+			submitter.Email,
+			endorserFullName,
+		)
 	}
 
 	return c.Status(fiber.StatusOK).JSON(response.ResponseModel{
@@ -382,18 +398,29 @@ func ApproveTicket(c *fiber.Ctx) error {
 	}
 
 	// =========================================
-	// ✅ FETCH SUBMITTER
+	// FETCH ENDORSER
+	// =========================================
+	var endorser models.UserAccount
+	middleware.DBConn.
+		Where("username = ?", ticket.Endorser).
+		First(&endorser)
+
+	endorserName := strings.TrimSpace(endorser.FirstName + " " + endorser.LastName)
+
+	// =========================================
+	// FETCH SUBMITTER
 	// =========================================
 	var submitter models.UserAccount
-
-	if err := middleware.DBConn.
+	middleware.DBConn.
 		Where("username = ?", ticket.Username).
-		First(&submitter).Error; err != nil {
+		First(&submitter)
 
-		log.Println("Failed to fetch submitter:", err)
-	}
+	submitterName := strings.TrimSpace(submitter.FirstName + " " + submitter.LastName)
 
-	submitterName := submitter.FirstName + " " + submitter.LastName
+	// =========================================
+	// FETCH APPROVER (current user)
+	// =========================================
+	approverName := strings.TrimSpace(user.FirstName + " " + user.LastName)
 
 	// =========================================
 	// ✅ SEND EMAIL TO RESOLVERS
@@ -409,29 +436,30 @@ func ApproveTicket(c *fiber.Ctx) error {
 
 	for _, r := range resolvers {
 
-		r := r // capture loop variable safely
+		r := r // safe copy
 
-		if r.Email != "" {
-
-			go func() {
-
-				if err := services.SendResolverNotification(
-					ticket,
-					r.Username,
-					r.Email,
-					submitterName,
-				); err != nil {
-
-					log.Println(
-						"Failed to send resolver email to",
-						r.Email,
-						":",
-						err,
-					)
-				}
-
-			}()
+		if r.Email == "" {
+			continue
 		}
+
+		resolverName := strings.TrimSpace(r.FirstName + " " + r.LastName)
+
+		go func(resolver models.UserAccount, resolverName string) {
+
+			err := services.SendResolverNotification(
+				ticket,
+				resolverName, // ✅ FULL NAME
+				resolver.Email,
+				submitterName,
+				approverName,
+				endorserName,
+			)
+
+			if err != nil {
+				log.Println("Failed resolver email:", resolver.Email, err)
+			}
+
+		}(r, resolverName)
 	}
 
 	// =========================================
