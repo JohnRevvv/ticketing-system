@@ -132,10 +132,10 @@ func CreateTicket(c *fiber.Ctx) error {
 			// File type validation
 			contentType := file.Header.Get("Content-Type")
 			allowedTypes := map[string]bool{
-				"image/jpeg": true,
-				"image/png":  true,
+				"image/jpeg":      true,
+				"image/png":       true,
 				"application/pdf": true,
-				"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": true,
+				"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet":       true,
 				"application/vnd.openxmlformats-officedocument.wordprocessingml.document": true,
 			}
 
@@ -1197,6 +1197,14 @@ func CloseTicket(c *fiber.Ctx) error {
 		})
 	}
 
+	reason := c.FormValue("reason")
+	if reason == "" {
+		return c.Status(fiber.StatusBadRequest).JSON(response.ResponseModel{
+			RetCode: "400",
+			Message: "Cancellation reason is required",
+		})
+	}
+
 	// 🎫 Get ticket
 	var ticket models.CreateTicket
 	if err := middleware.DBConn.Where("ticket_id = ?", ticketID).First(&ticket).Error; err != nil {
@@ -1227,12 +1235,14 @@ func CloseTicket(c *fiber.Ctx) error {
 
 	// 💾 Update ticket
 	if err := middleware.DBConn.Model(&ticket).Updates(map[string]interface{}{
-		"status":    "closed",
-		"closed_at": now,
+		"status":           "cancelled",
+		"cancelled_by":     user.Username,
+		"cancelled_at":     now,
+		"cancelled_reason": reason,
 	}).Error; err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(response.ResponseModel{
 			RetCode: "500",
-			Message: "Failed to close ticket",
+			Message: "Failed to cancel ticket",
 		})
 	}
 
@@ -1325,5 +1335,103 @@ func ResumeTicket(c *fiber.Ctx) error {
 	return c.JSON(fiber.Map{
 		"success": true,
 		"message": "Ticket resumed",
+	})
+}
+
+
+
+
+// ============================================
+// RESERVED FOR PHASE 2!!
+// ============================================
+
+func GetAllTickets2(c *fiber.Ctx) error {
+
+	// 🔐 Get requester
+	userID, err := middleware.GetUserIDFromJWT(c)
+	if err != nil {
+		return c.Status(fiber.StatusUnauthorized).JSON(response.ResponseModel{
+			RetCode: "401",
+			Message: "Unauthorized",
+		})
+	}
+
+	var requester models.UserAccount
+	if err := middleware.DBConn.First(&requester, userID).Error; err != nil {
+		return c.Status(fiber.StatusUnauthorized).JSON(response.ResponseModel{
+			RetCode: "401",
+			Message: "User not found",
+		})
+	}
+
+	// 🎯 Base query
+	query := middleware.DBConn.
+		Model(&models.CreateTicket{}).
+		Order("created_at desc")
+
+	// 🚫 Restrict by institution if NOT super admin
+	if requester.Role != "super_admin" {
+		query = query.Where("institution = ?", requester.Institution)
+	}
+
+	var tickets []models.CreateTicket
+	if err := query.Find(&tickets).Error; err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(response.ResponseModel{
+			RetCode: "500",
+			Message: "Failed to fetch tickets",
+		})
+	}
+
+	// 📭 Empty check
+	if len(tickets) == 0 {
+		return c.Status(fiber.StatusOK).JSON(response.ResponseModel{
+			RetCode: "200",
+			Message: "No tickets found",
+			Data:    []string{},
+		})
+	}
+
+	// 📦 Build response
+	var responseData []fiber.Map
+
+	for _, ticket := range tickets {
+
+		var attachments []models.TicketAttachment
+		_ = middleware.DBConn.
+			Where("ticket_id = ?", ticket.TicketID).
+			Find(&attachments).Error
+
+		responseData = append(responseData, fiber.Map{
+			"ticket_id":          ticket.TicketID,
+			"username":           ticket.Username,
+			"category":           ticket.Category,
+			"subject":            ticket.Subject,
+			"institution":        ticket.Institution,
+			"tickettype":         ticket.Tickettype,
+			"description":        ticket.Description,
+			"priority":           ticket.Priority,
+			"assignee":           ticket.Assignee,
+			"endorser":           ticket.Endorser,
+			"approver":           ticket.Approver,
+			"status":             ticket.Status,
+			"created_at":         ticket.CreatedAt,
+			"updated_at":         ticket.UpdatedAt,
+			"cancelled_by":       ticket.CancelledBy,
+			"cancelled_at":       ticket.CancelledAt,
+			"started_at":         ticket.StartedAt,
+			"resolved_at":        ticket.ResolvedAt,
+			"resolution_minutes": ticket.ResolutionMinutes,
+			"resolution_time":    ticket.ResolutionTime,
+			"onhold":             ticket.OnHold,
+			"hold_started_at":    ticket.HoldStartedAt,
+			"total_hold_seconds": ticket.TotalHoldSeconds,
+			"attachments":        attachments,
+		})
+	}
+
+	return c.Status(fiber.StatusOK).JSON(response.ResponseModel{
+		RetCode: "200",
+		Message: "Tickets fetched successfully",
+		Data:    responseData,
 	})
 }

@@ -1299,3 +1299,228 @@ func DeleteSubCategory(c *fiber.Ctx) error {
 		Message: "Subcategory deleted successfully",
 	})
 }
+
+
+
+// ============================================
+// RESERVED FOR PHASE 2!!
+// ============================================
+
+func CreateInstitution(c *fiber.Ctx) error {
+
+	// 🔐 Get user from JWT
+	userID, err := middleware.GetUserIDFromJWT(c)
+	if err != nil {
+		return c.Status(fiber.StatusUnauthorized).JSON(response.ResponseModel{
+			RetCode: "401",
+			Message: "Unauthorized",
+		})
+	}
+
+	// 👤 Get user
+	var user models.UserAccount
+	if err := middleware.DBConn.First(&user, userID).Error; err != nil {
+		return c.Status(fiber.StatusUnauthorized).JSON(response.ResponseModel{
+			RetCode: "401",
+			Message: "User not found",
+		})
+	}
+
+	// 🚫 Only super admin allowed
+	if user.Role != "super_admin" {
+		return c.Status(fiber.StatusForbidden).JSON(response.ResponseModel{
+			RetCode: "403",
+			Message: "Only super admin can create institution",
+		})
+	}
+
+	// 📥 Request body (no DTO)
+	var req struct {
+		Name        string `json:"name"`
+		Description string `json:"description"`
+	}
+
+	if err := c.BodyParser(&req); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(response.ResponseModel{
+			RetCode: "400",
+			Message: "Invalid request body",
+		})
+	}
+
+	// 🔍 Validate
+	if req.Name == "" {
+		return c.Status(fiber.StatusBadRequest).JSON(response.ResponseModel{
+			RetCode: "400",
+			Message: "Institution name is required",
+		})
+	}
+
+	// 🚨 Check duplicate name
+	var existing models.Institution
+	if err := middleware.DBConn.
+		Where("name = ?", req.Name).
+		First(&existing).Error; err == nil {
+		return c.Status(fiber.StatusConflict).JSON(response.ResponseModel{
+			RetCode: "409",
+			Message: "Institution already exists",
+		})
+	}
+
+	// 🏗 Create institution
+	institution := models.Institution{
+		Name:        req.Name,
+		Description: req.Description,
+		Status:      "active",
+		CreatedBy:   user.UserID,
+		CreatedAt:   time.Now(),
+		UpdatedAt:   time.Now(),
+	}
+
+	if err := middleware.DBConn.Create(&institution).Error; err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(response.ResponseModel{
+			RetCode: "500",
+			Message: "Failed to create institution",
+		})
+	}
+
+	return c.Status(fiber.StatusCreated).JSON(response.ResponseModel{
+		RetCode: "201",
+		Message: "Institution created successfully",
+		Data:    institution,
+	})
+}
+
+func GetInstitutions(c *fiber.Ctx) error {
+	var institutions []models.Institution
+
+	if err := middleware.DBConn.Find(&institutions).Error; err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(response.ResponseModel{
+			RetCode: "500",
+			Message: "Failed to fetch institutions",
+		})
+	}
+
+	return c.JSON(response.ResponseModel{
+		RetCode: "200",
+		Message: "Success",
+		Data:    institutions,
+	})
+}
+
+func AssignAdminRole(c *fiber.Ctx) error {
+
+	// 🔐 Get requester
+	requesterID, err := middleware.GetUserIDFromJWT(c)
+	if err != nil {
+		return c.Status(fiber.StatusUnauthorized).JSON(response.ResponseModel{
+			RetCode: "401",
+			Message: "Unauthorized",
+		})
+	}
+
+	var requester models.UserAccount
+	if err := middleware.DBConn.First(&requester, requesterID).Error; err != nil {
+		return c.Status(fiber.StatusUnauthorized).JSON(response.ResponseModel{
+			RetCode: "401",
+			Message: "User not found",
+		})
+	}
+
+	// 🚫 Only super admin can assign roles
+	if requester.Role != "super_admin" {
+		return c.Status(fiber.StatusForbidden).JSON(response.ResponseModel{
+			RetCode: "403",
+			Message: "Only super admin can assign admin role",
+		})
+	}
+
+	// 📥 Request body
+	var req struct {
+		UserID      uint   `json:"user_id"`
+		Institution string `json:"institution"`
+	}
+
+	if err := c.BodyParser(&req); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(response.ResponseModel{
+			RetCode: "400",
+			Message: "Invalid request body",
+		})
+	}
+
+	if req.UserID == 0 || req.Institution == "" {
+		return c.Status(fiber.StatusBadRequest).JSON(response.ResponseModel{
+			RetCode: "400",
+			Message: "user_id and institution are required",
+		})
+	}
+
+	// 👤 Find target user
+	var user models.UserAccount
+	if err := middleware.DBConn.First(&user, req.UserID).Error; err != nil {
+		return c.Status(fiber.StatusNotFound).JSON(response.ResponseModel{
+			RetCode: "404",
+			Message: "User not found",
+		})
+	}
+
+	// 🏢 Assign role + institution
+	user.Role = "admin"
+	user.Institution = req.Institution
+
+	if err := middleware.DBConn.Save(&user).Error; err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(response.ResponseModel{
+			RetCode: "500",
+			Message: "Failed to assign admin role",
+		})
+	}
+
+	return c.Status(fiber.StatusOK).JSON(response.ResponseModel{
+		RetCode: "200",
+		Message: "User promoted to admin successfully",
+		Data:    user,
+	})
+}
+
+func GetAllUsers2(c *fiber.Ctx) error {
+
+	// 🔐 Get requester from JWT
+	userID, err := middleware.GetUserIDFromJWT(c)
+	if err != nil {
+		return c.Status(fiber.StatusUnauthorized).JSON(response.ResponseModel{
+			RetCode: "401",
+			Message: "Unauthorized",
+		})
+	}
+
+	// 👤 Get user info
+	var requester models.UserAccount
+	if err := middleware.DBConn.First(&requester, userID).Error; err != nil {
+		return c.Status(fiber.StatusUnauthorized).JSON(response.ResponseModel{
+			RetCode: "401",
+			Message: "User not found",
+		})
+	}
+
+	var users []models.UserAccount
+
+	query := middleware.DBConn.Model(&models.UserAccount{})
+
+	// 🚫 If NOT super admin → restrict to same institution
+	if requester.Role != "super_admin" {
+		query = query.Where("institution = ?", requester.Institution)
+	}
+
+	// 📥 Execute query
+	if err := query.Find(&users).Error; err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(response.ResponseModel{
+			RetCode: "500",
+			Message: "Failed to fetch users",
+		})
+	}
+
+	return c.Status(fiber.StatusOK).JSON(response.ResponseModel{
+		RetCode: "200",
+		Message: "Users fetched successfully",
+		Data:    users,
+	})
+}

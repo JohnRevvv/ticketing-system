@@ -10,16 +10,19 @@ type CreateTicket struct {
 	Institution       string     `json:"institution"`
 	Tickettype        string     `json:"tickettype"`
 	Description       string     `json:"description"`
-	DateNeed          *time.Time `json:"dateneed"` //new added
+	DateNeed          *time.Time `json:"dateneed"`
 	Priority          string     `json:"priority"`
 	Assignee          string     `json:"assignee"`
 	Endorser          string     `json:"endorser"`
 	Approver          string     `json:"approver"`
-	Status            string     `json:"status"             gorm:"default:'for endorsement'"`
-	CreatedAt         time.Time  `json:"created_at"         gorm:"autoCreateTime"`
-	UpdatedAt         time.Time  `json:"updated_at"         gorm:"autoUpdateTime"`
+	Status            string     `json:"status" gorm:"default:'for endorsement'"`
+	CreatedAt         time.Time  `json:"created_at" gorm:"autoCreateTime"`
+	UpdatedAt         time.Time  `json:"updated_at" gorm:"autoUpdateTime"`
+
 	CancelledBy       string     `json:"cancelled_by"`
 	CancelledAt       *time.Time `json:"cancelled_at"`
+	CancelledReason   string     `json:"cancelled_reason"` // ✅ NEW FIELD
+
 	StartedAt         *time.Time `json:"started_at"`
 	ResolvedAt        *time.Time `json:"resolved_at"`
 	ResolutionMinutes float64    `json:"resolution_minutes"`
@@ -28,10 +31,6 @@ type CreateTicket struct {
 	HoldStartedAt     *time.Time `json:"hold_started_at"`
 	TotalHoldSeconds  float64    `json:"total_hold_seconds"`
 	ClosedAt          time.Time  `json:"closed_at"`
-}
-
-func (CreateTicket) TableName() string {
-	return "tickets"
 }
 
 // ── TicketAttachment ──────────────────────────────────────────────────────────
@@ -63,4 +62,3 @@ func (TicketRemark) TableName() string {
 	return "ticketremark"
 }
 
-//test

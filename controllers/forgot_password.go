@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log"
 	"math/rand"
+	"regexp"
 	"ticketing-be-dev/middleware"
 	"ticketing-be-dev/models"
 	"ticketing-be-dev/models/response"
@@ -126,6 +127,17 @@ func VerifyCode(c *fiber.Ctx) error {
 // -----------------------------
 // RESET PASSWORD
 // -----------------------------
+func validatePassword(password string) bool {
+	if len(password) < 8 {
+		return false
+	}
+
+	hasNumber := regexp.MustCompile(`[0-9]`).MatchString
+	hasSpecial := regexp.MustCompile(`[!@#\$%\^&\*\(\)_\+\-=\[\]\{\};:'",.<>\/?\\|]`).MatchString
+
+	return hasNumber(password) && hasSpecial(password)
+}
+
 func ResetPassword(c *fiber.Ctx) error {
 	var body struct {
 		Token       string `json:"token"`
@@ -136,6 +148,14 @@ func ResetPassword(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusBadRequest).JSON(response.ResponseModel{
 			RetCode: "400",
 			Message: "Invalid request body",
+		})
+	}
+
+	// ✅ PASSWORD VALIDATION (added)
+	if !validatePassword(body.NewPassword) {
+		return c.Status(fiber.StatusBadRequest).JSON(response.ResponseModel{
+			RetCode: "400",
+			Message: "Password must be at least 8 characters long and include at least 1 number and 1 special character",
 		})
 	}
 
@@ -179,8 +199,6 @@ func ResetPassword(c *fiber.Ctx) error {
 	if err := middleware.DBConn.First(&user, resetToken.UserID).Error; err != nil {
 		log.Println("Failed to fetch user for email:", err)
 	} else if user.Email != "" {
-		// Send notification asynchronously
-		// Send notification asynchronously
 		go services.SendPasswordResetSuccessEmail(user.Email, user.Username)
 	}
 

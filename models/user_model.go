@@ -46,3 +46,22 @@ type SubCategory struct {
 func (SubCategory) TableName() string {
 	return "subcategories"
 }
+
+// ============================================
+// RESERVED FOR PHASE 2!!
+// ============================================
+
+type Institution struct {
+	InstitutionID uint      `gorm:"primaryKey" json:"institution_id"`
+	Name           string    `gorm:"unique;not null" json:"name"`
+	Description    string    `json:"description"`
+	Status         string    `gorm:"default:'active';not null" json:"status"`
+
+	CreatedBy      uint      `gorm:"not null" json:"created_by"`
+	CreatedAt      time.Time `json:"created_at"`
+	UpdatedAt      time.Time `json:"updated_at"`
+}
+
+func (Institution) TableName() string {
+	return "institution"
+}
