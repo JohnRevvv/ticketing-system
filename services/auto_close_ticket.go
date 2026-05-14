@@ -44,48 +44,37 @@ func StartTicketAutoCloser() {
 
 func AutoCloseResolvedTickets() {
 
-	var tickets []models.CreateTicket
+    var tickets []models.CreateTicket
 
-	// ✅ 1 minute ago
-	// cutoff := time.Now().Add(-1 * time.Minute)
+    // 7 days ago
+    cutoff := time.Now().AddDate(0, 0, -7)
 
-	// 7 days
-	cutoff := time.Now().AddDate(0, 0, -7)
+    err := middleware.DBConn.
+        Where("status = ? AND resolved_at <= ?", "resolved", cutoff).
+        Find(&tickets).Error
 
-	log.Println("Cutoff time:", cutoff)
+    if err != nil {
+        log.Println("DB query failed:", err)
+        return
+    }
 
-	// ✅ TEMPORARY TEST
-	// remove updated_at first to verify logic works
-	err := middleware.DBConn.
-		Where("status = ?", "resolved").
-		Find(&tickets).Error
+    now := time.Now()
 
-	if err != nil {
-		log.Println("DB query failed:", err)
-		return
-	}
+    for _, ticket := range tickets {
 
-	log.Println("Resolved tickets found:", len(tickets))
+        err := middleware.DBConn.
+            Model(&models.CreateTicket{}).
+            Where("ticket_id = ?", ticket.TicketID).
+            Updates(map[string]interface{}{
+                "status":    "closed",
+                "closed_at": now,
+            }).Error
 
-	now := time.Now()
+        if err != nil {
+            log.Println("Failed closing ticket:", ticket.TicketID, err)
+            continue
+        }
 
-	for _, ticket := range tickets {
-
-		log.Println("Closing ticket:", ticket.TicketID)
-
-		err := middleware.DBConn.
-			Model(&models.CreateTicket{}).
-			Where("ticket_id = ?", ticket.TicketID).
-			Updates(map[string]interface{}{
-				"status":    "closed",
-				"closed_at": now,
-			}).Error
-
-		if err != nil {
-			log.Println("Failed closing ticket:", ticket.TicketID, err)
-			continue
-		}
-
-		log.Println("✅ Ticket closed:", ticket.TicketID)
-	}
+        log.Println("Auto-closed ticket:", ticket.TicketID)
+    }
 }

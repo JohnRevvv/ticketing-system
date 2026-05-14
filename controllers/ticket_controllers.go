@@ -16,7 +16,6 @@ import (
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
-	"github.com/robfig/cron/v3"
 )
 
 var ticketIDMutex = &sync.Mutex{}
@@ -79,6 +78,25 @@ func CreateTicket(c *fiber.Ctx) error {
 
 	ticket.Username = user.Username
 
+	// -------------------------------
+	// ✅ BUSINESS RULE VALIDATION
+	// -------------------------------
+	creatorUsername := user.Username
+
+	// 🚫 Prevent self-endorsement
+	if ticket.Endorser == creatorUsername {
+		tx.Rollback()
+		return c.Status(fiber.StatusBadRequest).JSON(response.ResponseModel{
+			RetCode: "400",
+			Message: "You cannot assign yourself as endorser of your own ticket",
+		})
+	}
+
+	// (Optional) log self-approval but allowed
+	if ticket.Approver == creatorUsername {
+		log.Println("ℹ️ User is also the approver of their own ticket:", creatorUsername)
+	}
+
 	// Full name for email display
 	submitterFullName := strings.TrimSpace(
 		user.FirstName + " " + user.LastName,
@@ -93,14 +111,16 @@ func CreateTicket(c *fiber.Ctx) error {
 		})
 	}
 
+	// -------------------------------
 	// Handle attachments (S3 only)
+	// -------------------------------
 	form, err := c.MultipartForm()
 	if err == nil && form.File != nil {
 		files := form.File["attachments"]
 
 		for _, file := range files {
 
-			// ✅ File size validation (5MB)
+			// File size validation (5MB)
 			if file.Size > 5*1024*1024 {
 				tx.Rollback()
 				return c.Status(fiber.StatusBadRequest).JSON(response.ResponseModel{
@@ -109,14 +129,14 @@ func CreateTicket(c *fiber.Ctx) error {
 				})
 			}
 
-			// ✅ File type validation
+			// File type validation
 			contentType := file.Header.Get("Content-Type")
 			allowedTypes := map[string]bool{
-				"image/jpeg":      true,
-				"image/png":       true,
+				"image/jpeg": true,
+				"image/png":  true,
 				"application/pdf": true,
-				"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet":       true, // xlsx
-				"application/vnd.openxmlformats-officedocument.wordprocessingml.document": true, // docx
+				"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": true,
+				"application/vnd.openxmlformats-officedocument.wordprocessingml.document": true,
 			}
 
 			if !allowedTypes[contentType] {
@@ -127,7 +147,7 @@ func CreateTicket(c *fiber.Ctx) error {
 				})
 			}
 
-			// ✅ Upload to S3
+			// Upload to S3
 			fileName, filekey, err := services.UploadToS3(file, ticket.TicketID)
 			if err != nil {
 				log.Println("❌ S3 UPLOAD FAILED")
@@ -148,11 +168,11 @@ func CreateTicket(c *fiber.Ctx) error {
 				})
 			}
 
-			// ✅ Save metadata
+			// Save attachment metadata
 			attachment := models.TicketAttachment{
 				TicketID:   ticket.TicketID,
 				FileName:   fileName,
-				FileKey:    filekey, // consider renaming to FileURL
+				FileKey:    filekey,
 				UploadedBy: user.Username,
 			}
 
@@ -166,7 +186,7 @@ func CreateTicket(c *fiber.Ctx) error {
 		}
 	}
 
-	// Get endorser email (using SAME transaction)
+	// Get endorser email
 	var endorser models.UserAccount
 	if err := tx.
 		Where("username = ?", ticket.Endorser).
@@ -204,6 +224,172 @@ func CreateTicket(c *fiber.Ctx) error {
 		},
 	})
 }
+
+// func CreateTicket(c *fiber.Ctx) error {
+// 	// Start DB transaction
+// 	tx := middleware.DBConn.Begin()
+
+// 	// Parse ticket fields
+// 	ticket := models.CreateTicket{
+// 		TicketID:    generateTicketID(),
+// 		Subject:     c.FormValue("subject"),
+// 		Category:    c.FormValue("category"),
+// 		Institution: c.FormValue("institution"),
+// 		Tickettype:  c.FormValue("tickettype"),
+// 		Description: c.FormValue("description"),
+// 		Assignee:    c.FormValue("assignee"),
+// 		Priority:    c.FormValue("priority"),
+// 		Endorser:    c.FormValue("endorser"),
+// 		Approver:    c.FormValue("approver"),
+// 		Status:      "for endorsement",
+// 	}
+
+// 	// Get user info from JWT
+// 	userID, err := middleware.GetUserIDFromJWT(c)
+// 	if err != nil {
+// 		tx.Rollback()
+// 		return c.Status(fiber.StatusUnauthorized).JSON(response.ResponseModel{
+// 			RetCode: "401",
+// 			Message: "Unauthorized: User ID not found",
+// 		})
+// 	}
+
+// 	var user models.UserAccount
+// 	if err := tx.First(&user, userID).Error; err != nil {
+// 		tx.Rollback()
+// 		return c.Status(fiber.StatusInternalServerError).JSON(response.ResponseModel{
+// 			RetCode: "500",
+// 			Message: "Failed to fetch user info",
+// 		})
+// 	}
+
+// 	ticket.Username = user.Username
+
+// 	// Full name for email display
+// 	submitterFullName := strings.TrimSpace(
+// 		user.FirstName + " " + user.LastName,
+// 	)
+
+// 	// Save ticket
+// 	if err := tx.Create(&ticket).Error; err != nil {
+// 		tx.Rollback()
+// 		return c.Status(fiber.StatusInternalServerError).JSON(response.ResponseModel{
+// 			RetCode: "500",
+// 			Message: "Failed to create ticket",
+// 		})
+// 	}
+
+// 	// Handle attachments (S3 only)
+// 	form, err := c.MultipartForm()
+// 	if err == nil && form.File != nil {
+// 		files := form.File["attachments"]
+
+// 		for _, file := range files {
+
+// 			// ✅ File size validation (5MB)
+// 			if file.Size > 5*1024*1024 {
+// 				tx.Rollback()
+// 				return c.Status(fiber.StatusBadRequest).JSON(response.ResponseModel{
+// 					RetCode: "400",
+// 					Message: "File too large (max 5MB)",
+// 				})
+// 			}
+
+// 			// ✅ File type validation
+// 			contentType := file.Header.Get("Content-Type")
+// 			allowedTypes := map[string]bool{
+// 				"image/jpeg":      true,
+// 				"image/png":       true,
+// 				"application/pdf": true,
+// 				"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet":       true, // xlsx
+// 				"application/vnd.openxmlformats-officedocument.wordprocessingml.document": true, // docx
+// 			}
+
+// 			if !allowedTypes[contentType] {
+// 				tx.Rollback()
+// 				return c.Status(fiber.StatusBadRequest).JSON(response.ResponseModel{
+// 					RetCode: "400",
+// 					Message: "Invalid file type",
+// 				})
+// 			}
+
+// 			// ✅ Upload to S3
+// 			fileName, filekey, err := services.UploadToS3(file, ticket.TicketID)
+// 			if err != nil {
+// 				log.Println("❌ S3 UPLOAD FAILED")
+// 				log.Println("TicketID:", ticket.TicketID)
+// 				log.Println("Filename:", file.Filename)
+// 				log.Println("Error:", err)
+
+// 				tx.Rollback()
+
+// 				return c.Status(fiber.StatusInternalServerError).JSON(response.ResponseModel{
+// 					RetCode: "500",
+// 					Message: "S3 Upload failed",
+// 					Data: fiber.Map{
+// 						"error":     err.Error(),
+// 						"ticket_id": ticket.TicketID,
+// 						"file_name": file.Filename,
+// 					},
+// 				})
+// 			}
+
+// 			// ✅ Save metadata
+// 			attachment := models.TicketAttachment{
+// 				TicketID:   ticket.TicketID,
+// 				FileName:   fileName,
+// 				FileKey:    filekey, // consider renaming to FileURL
+// 				UploadedBy: user.Username,
+// 			}
+
+// 			if err := tx.Create(&attachment).Error; err != nil {
+// 				tx.Rollback()
+// 				return c.Status(fiber.StatusInternalServerError).JSON(response.ResponseModel{
+// 					RetCode: "500",
+// 					Message: "Failed to save attachment metadata",
+// 				})
+// 			}
+// 		}
+// 	}
+
+// 	// Get endorser email (using SAME transaction)
+// 	var endorser models.UserAccount
+// 	if err := tx.
+// 		Where("username = ?", ticket.Endorser).
+// 		First(&endorser).Error; err != nil {
+
+// 		tx.Rollback()
+// 		return c.Status(fiber.StatusInternalServerError).JSON(response.ResponseModel{
+// 			RetCode: "500",
+// 			Message: "Endorser not found",
+// 		})
+// 	}
+
+// 	// Commit transaction
+// 	if err := tx.Commit().Error; err != nil {
+// 		tx.Rollback()
+// 		return c.Status(fiber.StatusInternalServerError).JSON(response.ResponseModel{
+// 			RetCode: "500",
+// 			Message: "Failed to finalize transaction",
+// 		})
+// 	}
+
+// 	// Send email asynchronously
+// 	go func() {
+// 		if err := services.SendEndorserNotification(ticket, endorser.Email, submitterFullName); err != nil {
+// 			log.Println("Error sending endorser email:", err)
+// 		}
+// 	}()
+
+// 	return c.Status(fiber.StatusCreated).JSON(response.ResponseModel{
+// 		RetCode: "201",
+// 		Message: "Ticket created successfully",
+// 		Data: fiber.Map{
+// 			"ticket_code": ticket.TicketID,
+// 			"ticket":      ticket,
+// 		},
+// 	})
+// }
 
 func UpdateTicket(c *fiber.Ctx) error {
 	tx := middleware.DBConn.Begin()
@@ -343,7 +529,6 @@ func UpdateTicket(c *fiber.Ctx) error {
 		Data:    ticket,
 	})
 }
-
 
 // fetching their full names instead of just username
 func GetTicketByID(c *fiber.Ctx) error {
@@ -1059,59 +1244,6 @@ func CloseTicket(c *fiber.Ctx) error {
 			"ticket": ticket,
 		},
 	})
-}
-
-func StartTicketAutoCloser() {
-	c := cron.New()
-
-	_, err := c.AddFunc("@daily", func() {
-		defer func() {
-			if r := recover(); r != nil {
-				log.Println("AutoCloser panic recovered:", r)
-			}
-		}()
-
-		AutoCloseResolvedTickets()
-	})
-
-	if err != nil {
-		log.Fatal("Failed to start cron:", err)
-	}
-
-	c.Start()
-}
-
-func AutoCloseResolvedTickets() {
-	var tickets []models.CreateTicket
-
-	// 🕒 7 days cutoff
-	cutoff := time.Now().AddDate(0, 0, -7)
-
-	// 🔍 Find resolved tickets older than 7 days and not yet closed
-	if err := middleware.DBConn.
-		Where("status = ? AND updated_at <= ?", "resolved", cutoff).
-		Find(&tickets).Error; err != nil {
-		log.Println("Failed to fetch resolved tickets:", err)
-		return
-	}
-
-	now := time.Now()
-
-	for _, ticket := range tickets {
-		err := middleware.DBConn.Model(&models.CreateTicket{}).
-			Where("ticket_id = ?", ticket.TicketID).
-			Updates(map[string]interface{}{
-				"status":    "closed",
-				"closed_at": now,
-			}).Error
-
-		if err != nil {
-			log.Println("Failed to auto-close ticket:", ticket.TicketID, err)
-			continue
-		}
-
-		log.Println("Auto-closed ticket:", ticket.TicketID)
-	}
 }
 
 func HoldTicket(c *fiber.Ctx) error {
