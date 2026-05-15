@@ -47,13 +47,12 @@ func CreateTicket(c *fiber.Ctx) error {
 		TicketID:    generateTicketID(),
 		Subject:     c.FormValue("subject"),
 		Category:    c.FormValue("category"),
+		Subcategory: c.FormValue("sub_category"),
 		Institution: c.FormValue("institution"),
 		Tickettype:  c.FormValue("tickettype"),
 		Description: c.FormValue("description"),
-		Assignee:    c.FormValue("assignee"),
 		Priority:    c.FormValue("priority"),
 		Endorser:    c.FormValue("endorser"),
-		Approver:    c.FormValue("approver"),
 		Status:      "for endorsement",
 	}
 
@@ -225,176 +224,9 @@ func CreateTicket(c *fiber.Ctx) error {
 	})
 }
 
-// func CreateTicket(c *fiber.Ctx) error {
-// 	// Start DB transaction
-// 	tx := middleware.DBConn.Begin()
-
-// 	// Parse ticket fields
-// 	ticket := models.CreateTicket{
-// 		TicketID:    generateTicketID(),
-// 		Subject:     c.FormValue("subject"),
-// 		Category:    c.FormValue("category"),
-// 		Institution: c.FormValue("institution"),
-// 		Tickettype:  c.FormValue("tickettype"),
-// 		Description: c.FormValue("description"),
-// 		Assignee:    c.FormValue("assignee"),
-// 		Priority:    c.FormValue("priority"),
-// 		Endorser:    c.FormValue("endorser"),
-// 		Approver:    c.FormValue("approver"),
-// 		Status:      "for endorsement",
-// 	}
-
-// 	// Get user info from JWT
-// 	userID, err := middleware.GetUserIDFromJWT(c)
-// 	if err != nil {
-// 		tx.Rollback()
-// 		return c.Status(fiber.StatusUnauthorized).JSON(response.ResponseModel{
-// 			RetCode: "401",
-// 			Message: "Unauthorized: User ID not found",
-// 		})
-// 	}
-
-// 	var user models.UserAccount
-// 	if err := tx.First(&user, userID).Error; err != nil {
-// 		tx.Rollback()
-// 		return c.Status(fiber.StatusInternalServerError).JSON(response.ResponseModel{
-// 			RetCode: "500",
-// 			Message: "Failed to fetch user info",
-// 		})
-// 	}
-
-// 	ticket.Username = user.Username
-
-// 	// Full name for email display
-// 	submitterFullName := strings.TrimSpace(
-// 		user.FirstName + " " + user.LastName,
-// 	)
-
-// 	// Save ticket
-// 	if err := tx.Create(&ticket).Error; err != nil {
-// 		tx.Rollback()
-// 		return c.Status(fiber.StatusInternalServerError).JSON(response.ResponseModel{
-// 			RetCode: "500",
-// 			Message: "Failed to create ticket",
-// 		})
-// 	}
-
-// 	// Handle attachments (S3 only)
-// 	form, err := c.MultipartForm()
-// 	if err == nil && form.File != nil {
-// 		files := form.File["attachments"]
-
-// 		for _, file := range files {
-
-// 			// ✅ File size validation (5MB)
-// 			if file.Size > 5*1024*1024 {
-// 				tx.Rollback()
-// 				return c.Status(fiber.StatusBadRequest).JSON(response.ResponseModel{
-// 					RetCode: "400",
-// 					Message: "File too large (max 5MB)",
-// 				})
-// 			}
-
-// 			// ✅ File type validation
-// 			contentType := file.Header.Get("Content-Type")
-// 			allowedTypes := map[string]bool{
-// 				"image/jpeg":      true,
-// 				"image/png":       true,
-// 				"application/pdf": true,
-// 				"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet":       true, // xlsx
-// 				"application/vnd.openxmlformats-officedocument.wordprocessingml.document": true, // docx
-// 			}
-
-// 			if !allowedTypes[contentType] {
-// 				tx.Rollback()
-// 				return c.Status(fiber.StatusBadRequest).JSON(response.ResponseModel{
-// 					RetCode: "400",
-// 					Message: "Invalid file type",
-// 				})
-// 			}
-
-// 			// ✅ Upload to S3
-// 			fileName, filekey, err := services.UploadToS3(file, ticket.TicketID)
-// 			if err != nil {
-// 				log.Println("❌ S3 UPLOAD FAILED")
-// 				log.Println("TicketID:", ticket.TicketID)
-// 				log.Println("Filename:", file.Filename)
-// 				log.Println("Error:", err)
-
-// 				tx.Rollback()
-
-// 				return c.Status(fiber.StatusInternalServerError).JSON(response.ResponseModel{
-// 					RetCode: "500",
-// 					Message: "S3 Upload failed",
-// 					Data: fiber.Map{
-// 						"error":     err.Error(),
-// 						"ticket_id": ticket.TicketID,
-// 						"file_name": file.Filename,
-// 					},
-// 				})
-// 			}
-
-// 			// ✅ Save metadata
-// 			attachment := models.TicketAttachment{
-// 				TicketID:   ticket.TicketID,
-// 				FileName:   fileName,
-// 				FileKey:    filekey, // consider renaming to FileURL
-// 				UploadedBy: user.Username,
-// 			}
-
-// 			if err := tx.Create(&attachment).Error; err != nil {
-// 				tx.Rollback()
-// 				return c.Status(fiber.StatusInternalServerError).JSON(response.ResponseModel{
-// 					RetCode: "500",
-// 					Message: "Failed to save attachment metadata",
-// 				})
-// 			}
-// 		}
-// 	}
-
-// 	// Get endorser email (using SAME transaction)
-// 	var endorser models.UserAccount
-// 	if err := tx.
-// 		Where("username = ?", ticket.Endorser).
-// 		First(&endorser).Error; err != nil {
-
-// 		tx.Rollback()
-// 		return c.Status(fiber.StatusInternalServerError).JSON(response.ResponseModel{
-// 			RetCode: "500",
-// 			Message: "Endorser not found",
-// 		})
-// 	}
-
-// 	// Commit transaction
-// 	if err := tx.Commit().Error; err != nil {
-// 		tx.Rollback()
-// 		return c.Status(fiber.StatusInternalServerError).JSON(response.ResponseModel{
-// 			RetCode: "500",
-// 			Message: "Failed to finalize transaction",
-// 		})
-// 	}
-
-// 	// Send email asynchronously
-// 	go func() {
-// 		if err := services.SendEndorserNotification(ticket, endorser.Email, submitterFullName); err != nil {
-// 			log.Println("Error sending endorser email:", err)
-// 		}
-// 	}()
-
-// 	return c.Status(fiber.StatusCreated).JSON(response.ResponseModel{
-// 		RetCode: "201",
-// 		Message: "Ticket created successfully",
-// 		Data: fiber.Map{
-// 			"ticket_code": ticket.TicketID,
-// 			"ticket":      ticket,
-// 		},
-// 	})
-// }
-
 func UpdateTicket(c *fiber.Ctx) error {
 	tx := middleware.DBConn.Begin()
 
-	// Get ticket ID from params
 	ticketID := c.Params("id")
 
 	// Get user from JWT
@@ -426,7 +258,7 @@ func UpdateTicket(c *fiber.Ctx) error {
 		})
 	}
 
-	// 🔒 Check ownership
+	// Ownership check
 	if ticket.Username != user.Username {
 		tx.Rollback()
 		return c.Status(fiber.StatusForbidden).JSON(response.ResponseModel{
@@ -435,7 +267,7 @@ func UpdateTicket(c *fiber.Ctx) error {
 		})
 	}
 
-	// 🔒 Check status
+	// Status restriction
 	if ticket.Status != "for endorsement" {
 		tx.Rollback()
 		return c.Status(fiber.StatusBadRequest).JSON(response.ResponseModel{
@@ -445,17 +277,24 @@ func UpdateTicket(c *fiber.Ctx) error {
 	}
 
 	// Update fields
-	ticket.Subject = c.FormValue("subject")
-	ticket.Category = c.FormValue("category")
-	ticket.Institution = c.FormValue("institution")
-	ticket.Tickettype = c.FormValue("tickettype")
-	ticket.Description = c.FormValue("description")
-	ticket.Assignee = c.FormValue("assignee")
-	ticket.Priority = c.FormValue("priority")
-	ticket.Endorser = c.FormValue("endorser")
-	ticket.Approver = c.FormValue("approver")
+	newEndorser := c.FormValue("endorser")
 
-	// Save updates
+	// Business rule: prevent self-endorsement
+	if newEndorser == user.Username {
+		tx.Rollback()
+		return c.Status(fiber.StatusBadRequest).JSON(response.ResponseModel{
+			RetCode: "400",
+			Message: "You cannot assign yourself as endorser of your own ticket",
+		})
+	}
+
+	ticket.Subject = c.FormValue("subject")
+	ticket.Institution = c.FormValue("institution")
+	ticket.Description = c.FormValue("description")
+	ticket.Priority = c.FormValue("priority")
+	ticket.Endorser = newEndorser
+
+	// Save ticket updates
 	if err := tx.Save(&ticket).Error; err != nil {
 		tx.Rollback()
 		return c.Status(fiber.StatusInternalServerError).JSON(response.ResponseModel{
@@ -464,19 +303,16 @@ func UpdateTicket(c *fiber.Ctx) error {
 		})
 	}
 
-	// OPTIONAL: Handle new attachments (append only)
+	// -------------------------------
+	// Attachments (S3 - consistent with CreateTicket)
+	// -------------------------------
 	form, err := c.MultipartForm()
 	if err == nil && form.File != nil {
 		files := form.File["attachments"]
 
-		baseUploadPath := os.Getenv("UPLOAD_PATH")
-		if baseUploadPath == "" {
-			baseUploadPath = "uploads/attachments"
-		}
-
-		os.MkdirAll(baseUploadPath, os.ModePerm)
-
 		for _, file := range files {
+
+			// File size validation (5MB)
 			if file.Size > 5*1024*1024 {
 				tx.Rollback()
 				return c.Status(fiber.StatusBadRequest).JSON(response.ResponseModel{
@@ -485,22 +321,49 @@ func UpdateTicket(c *fiber.Ctx) error {
 				})
 			}
 
-			cleanFileName := sanitizeFileName(file.Filename)
-			savedFileName := fmt.Sprintf("%s_%d_%s", ticket.TicketID, time.Now().UnixNano(), cleanFileName)
-			filekey := fmt.Sprintf("%s/%s", baseUploadPath, savedFileName)
+			// File type validation
+			contentType := file.Header.Get("Content-Type")
+			allowedTypes := map[string]bool{
+				"image/jpeg":      true,
+				"image/png":       true,
+				"application/pdf": true,
+				"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet":       true,
+				"application/vnd.openxmlformats-officedocument.wordprocessingml.document": true,
+			}
 
-			if err := c.SaveFile(file, filekey); err != nil {
+			if !allowedTypes[contentType] {
 				tx.Rollback()
+				return c.Status(fiber.StatusBadRequest).JSON(response.ResponseModel{
+					RetCode: "400",
+					Message: "Invalid file type",
+				})
+			}
+
+			// Upload to S3 (same as CreateTicket)
+			fileName, fileKey, err := services.UploadToS3(file, ticket.TicketID)
+			if err != nil {
+				log.Println("❌ S3 UPLOAD FAILED (UPDATE)")
+				log.Println("TicketID:", ticket.TicketID)
+				log.Println("Filename:", file.Filename)
+				log.Println("Error:", err)
+
+				tx.Rollback()
+
 				return c.Status(fiber.StatusInternalServerError).JSON(response.ResponseModel{
 					RetCode: "500",
-					Message: "Failed to save attachment",
+					Message: "S3 Upload failed",
+					Data: fiber.Map{
+						"error":     err.Error(),
+						"ticket_id": ticket.TicketID,
+						"file_name": file.Filename,
+					},
 				})
 			}
 
 			attachment := models.TicketAttachment{
 				TicketID:   ticket.TicketID,
-				FileName:   cleanFileName,
-				FileKey:    filekey,
+				FileName:   fileName,
+				FileKey:    fileKey,
 				UploadedBy: user.Username,
 			}
 
@@ -514,7 +377,7 @@ func UpdateTicket(c *fiber.Ctx) error {
 		}
 	}
 
-	// Commit
+	// Commit transaction
 	if err := tx.Commit().Error; err != nil {
 		tx.Rollback()
 		return c.Status(fiber.StatusInternalServerError).JSON(response.ResponseModel{
@@ -526,7 +389,10 @@ func UpdateTicket(c *fiber.Ctx) error {
 	return c.Status(fiber.StatusOK).JSON(response.ResponseModel{
 		RetCode: "200",
 		Message: "Ticket updated successfully",
-		Data:    ticket,
+		Data: fiber.Map{
+			"ticket_code": ticket.TicketID,
+			"ticket":      ticket,
+		},
 	})
 }
 
@@ -602,46 +468,6 @@ func GetTicketByID(c *fiber.Ctx) error {
 	})
 }
 
-// func GetTicketByID(c *fiber.Ctx) error {
-// 	ticketID := c.Params("id")
-
-// 	// 🔹 Get ticket
-// 	var ticket models.CreateTicket
-// 	if err := middleware.DBConn.
-// 		Where("ticket_id = ?", ticketID).
-// 		First(&ticket).Error; err != nil {
-
-// 		return c.Status(fiber.StatusNotFound).JSON(response.ResponseModel{
-// 			RetCode: "404",
-// 			Message: "Ticket not found",
-// 		})
-// 	}
-
-// 	// 🔹 Get attachments
-// 	var attachments []models.TicketAttachment
-// 	if err := middleware.DBConn.
-// 		Where("ticket_id = ?", ticketID).
-// 		Find(&attachments).Error; err != nil {
-
-// 		return c.Status(fiber.StatusInternalServerError).JSON(response.ResponseModel{
-// 			RetCode: "500",
-// 			Message: "Failed to fetch attachments",
-// 		})
-// 	}
-
-// 	// 🔹 NO MORE LOCAL PATH FIXING
-// 	// Just return the S3 URL as-is
-
-// 	return c.Status(fiber.StatusOK).JSON(response.ResponseModel{
-// 		RetCode: "200",
-// 		Message: "Ticket fetched successfully",
-// 		Data: fiber.Map{
-// 			"ticket":      ticket,
-// 			"attachments": attachments,
-// 		},
-// 	})
-// }
-
 func ViewAttachment(c *fiber.Ctx) error {
 	attachmentID := c.Params("id")
 
@@ -697,6 +523,7 @@ func GetAllTickets(c *fiber.Ctx) error {
 			"ticket_id":          ticket.TicketID,
 			"username":           ticket.Username,
 			"category":           ticket.Category,
+			"sub_category":       ticket.Subcategory,
 			"subject":            ticket.Subject,
 			"institution":        ticket.Institution,
 			"tickettype":         ticket.Tickettype,
@@ -842,6 +669,7 @@ func ExportTicketsCSV(c *fiber.Ctx) error {
 		"Ticket ID",    // 0
 		"Creator",      // 1
 		"Category",     // 2
+		"Subcategory",
 		"Subject",      // 3
 		"Institution",  // 4
 		"Type",         // 5
@@ -869,6 +697,7 @@ func ExportTicketsCSV(c *fiber.Ctx) error {
 			t.TicketID,    // 0
 			t.Username,    // 1
 			t.Category,    // 2
+			t.Subcategory,
 			t.Subject,     // 3
 			t.Institution, // 4
 			t.Tickettype,  // 5
@@ -1027,112 +856,6 @@ func CreateTicketRemark(c *fiber.Ctx) error {
 		Data:    remark,
 	})
 }
-
-// func CreateTicketRemark(c *fiber.Ctx) error {
-// 	var input struct {
-// 		TicketID string `json:"ticket_id"`
-// 		UserID   string `json:"user_id"`
-// 		Username string `json:"username"`
-// 		Message  string `json:"message"`
-// 	}
-
-// 	// Parse body
-// 	if err := c.BodyParser(&input); err != nil {
-// 		return c.Status(fiber.StatusBadRequest).JSON(response.ResponseModel{
-// 			RetCode: "400",
-// 			Message: "Invalid request body",
-// 		})
-// 	}
-
-// 	// Validate
-// 	if input.TicketID == "" || input.UserID == "" || input.Username == "" || input.Message == "" {
-// 		return c.Status(fiber.StatusBadRequest).JSON(response.ResponseModel{
-// 			RetCode: "400",
-// 			Message: "ticket_id, user_id, username, and message are required",
-// 		})
-// 	}
-
-// 	// ================================
-// 	// ✅ FETCH TICKET
-// 	// ================================
-// 	var ticket models.CreateTicket
-// 	if err := middleware.DBConn.
-// 		Where("ticket_id = ?", input.TicketID).
-// 		First(&ticket).Error; err != nil {
-
-// 		return c.Status(fiber.StatusNotFound).JSON(response.ResponseModel{
-// 			RetCode: "404",
-// 			Message: "Ticket not found",
-// 		})
-// 	}
-
-// 	// 🚫 DISABLE REMARKS IF CLOSED
-// 	if ticket.Status == "closed" {
-// 		return c.Status(fiber.StatusBadRequest).JSON(response.ResponseModel{
-// 			RetCode: "400",
-// 			Message: "Cannot add remarks because this ticket is already closed",
-// 		})
-// 	}
-
-// 	// Create remark
-// 	remark := models.TicketRemark{
-// 		RemarkID:  uuid.New().String(),
-// 		TicketID:  input.TicketID,
-// 		UserID:    input.UserID,
-// 		Username:  input.Username,
-// 		Message:   input.Message,
-// 		CreatedAt: time.Now(),
-// 	}
-
-// 	// Save to DB
-// 	if err := middleware.DBConn.Create(&remark).Error; err != nil {
-// 		return c.Status(fiber.StatusInternalServerError).JSON(response.ResponseModel{
-// 			RetCode: "500",
-// 			Message: "Failed to create remark",
-// 		})
-// 	}
-
-// 	// ================================
-// 	// ✅ FETCH SUBMITTER
-// 	// ================================
-// 	var submitter models.UserAccount
-// 	if err := middleware.DBConn.
-// 		Where("username = ?", ticket.Username).
-// 		First(&submitter).Error; err != nil {
-
-// 		log.Println("Submitter not found:", err)
-
-// 	} else {
-
-// 		// ================================
-// 		// ✅ SEND EMAIL TO SUBMITTER
-// 		// ================================
-// 		if submitter.Email != "" {
-
-// 			fullName := submitter.FirstName + " " + submitter.LastName
-
-// 			go func() {
-// 				err := services.SendTicketRemarkNotification(
-// 					submitter.Email,
-// 					fullName,
-// 					ticket,
-// 					remark.Message,
-// 					input.Username,
-// 				)
-
-// 				if err != nil {
-// 					log.Println("Failed to send remark email:", err)
-// 				}
-// 			}()
-// 		}
-// 	}
-
-// 	return c.Status(fiber.StatusOK).JSON(response.ResponseModel{
-// 		RetCode: "200",
-// 		Message: "Remark added successfully",
-// 		Data:    remark,
-// 	})
-// }
 
 func GetRemarksByTicket(c *fiber.Ctx) error {
 	ticketID := c.Params("ticket_id")
@@ -1337,9 +1060,6 @@ func ResumeTicket(c *fiber.Ctx) error {
 		"message": "Ticket resumed",
 	})
 }
-
-
-
 
 // ============================================
 // RESERVED FOR PHASE 2!!

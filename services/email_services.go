@@ -84,7 +84,7 @@ func SendPasswordResetSuccessEmail(toEmail string, username string) error {
     <p>You can now log in using your new password.</p>
 
     <!-- LOGIN BUTTON -->
-    <a href="https://ideyanale.bakawan-ai.com/login" class="btn">Go to Login</a>
+    <a href="https://idiyanale.bakawan-ai.com/login" class="btn">Go to Login</a>
 
     <p class="footer">If you did not perform this action, please contact support immediately.</p>
   </div>
@@ -469,7 +469,7 @@ func SendResolverNotification(ticket models.CreateTicket, resolverUsername strin
 
 </body>
 </html>
-`, resolverUsername, ticket.TicketID, ticket.Subject, ticket.Category, ticket.Priority, submitterName, endorserName, approverName,)
+`, resolverUsername, ticket.TicketID, ticket.Subject, ticket.Category, ticket.Priority, submitterName, endorserName, approverName)
 
 	msg := []byte(
 		"Subject: " + subject + "\r\n" +
@@ -803,6 +803,7 @@ func SendResolvedNotification(ticket models.CreateTicket, submitterName string, 
       margin: 0;
       padding: 20px;
     }
+
     .container {
       max-width: 600px;
       margin: auto;
@@ -811,19 +812,24 @@ func SendResolvedNotification(ticket models.CreateTicket, submitterName string, 
       border-radius: 10px;
       border: 1px solid #eaeaea;
     }
+
     .header {
       text-align: center;
       border-bottom: 1px solid #eee;
       padding-bottom: 15px;
     }
+
     .header h2 {
       margin: 0;
       color: #2c3e50;
     }
+
     .header p {
       color: #777;
       font-size: 14px;
+      margin-top: 8px;
     }
+
     .ticket-box {
       background: #f9fafb;
       padding: 15px;
@@ -831,17 +837,21 @@ func SendResolvedNotification(ticket models.CreateTicket, submitterName string, 
       border-radius: 8px;
       border-left: 5px solid #28a745;
     }
+
     .label {
       font-weight: bold;
       color: #333;
     }
+
     .value {
       color: #555;
     }
+
     .status {
       font-weight: bold;
       color: #28a745;
     }
+
     .btn {
       display: block;
       text-align: center;
@@ -852,8 +862,10 @@ func SendResolvedNotification(ticket models.CreateTicket, submitterName string, 
       background-color: #28a745;
       text-decoration: none !important;
       border-radius: 6px;
-      width: 220px;
+      width: 240px;
+      font-weight: bold;
     }
+
     .footer {
       margin-top: 25px;
       font-size: 12px;
@@ -861,40 +873,87 @@ func SendResolvedNotification(ticket models.CreateTicket, submitterName string, 
       color: #888;
       border-top: 1px solid #eee;
       padding-top: 15px;
+      line-height: 1.6;
     }
   </style>
 </head>
+
 <body>
 
   <div class="container">
 
     <div class="header">
       <h2>Ticket Resolved</h2>
-      <p>Your request has been successfully completed.</p>
+      <p>
+        Your ticket has been marked as resolved.
+        Please log in to review and close the ticket
+        if everything is working properly.
+      </p>
     </div>
 
     <div class="ticket-box">
-      <p><span class="label">Hello:</span> <span class="value">%s</span></p>
-      <p><span class="label">Ticket ID:</span> <span class="value">%s</span></p>
-      <p><span class="label">Subject:</span> <span class="value">%s</span></p>
-      <p><span class="label">Category:</span> <span class="value">%s</span></p>
-      <p><span class="label">Priority:</span> <span class="value">%s</span></p>
-      <p><span class="label">Resolved By:</span> <span class="value">%s</span></p>
-      <p><span class="label">Status:</span> <span class="status">Resolved</span></p>
+      <p>
+        <span class="label">Hello:</span>
+        <span class="value">%s</span>
+      </p>
+
+      <p>
+        <span class="label">Ticket ID:</span>
+        <span class="value">%s</span>
+      </p>
+
+      <p>
+        <span class="label">Subject:</span>
+        <span class="value">%s</span>
+      </p>
+
+      <p>
+        <span class="label">Category:</span>
+        <span class="value">%s</span>
+      </p>
+
+      <p>
+        <span class="label">Priority:</span>
+        <span class="value">%s</span>
+      </p>
+
+      <p>
+        <span class="label">Resolved By:</span>
+        <span class="value">%s</span>
+      </p>
+
+      <p>
+        <span class="label">Status:</span>
+        <span class="status">Resolved</span>
+      </p>
     </div>
 
-    <a href="https://idiyanale.bakawan-ai.com/login" class="btn">View Ticket</a>
+    <a href="https://idiyanale.bakawan-ai.com/login" class="btn">
+      Login to Close Ticket
+    </a>
 
     <div class="footer">
       <p><b>Note:</b> This is an automated message.</p>
-      <p>If the issue persists, please create a new ticket.</p>
+      <p>
+        Please log in and close the ticket once you confirm
+        the issue has been resolved.
+      </p>
+      <p>
+        If the issue still persists, you may reopen or create a new ticket.
+      </p>
     </div>
 
   </div>
 
 </body>
 </html>
-`, submitterName, ticket.TicketID, ticket.Subject, ticket.Category, ticket.Priority, resolverName)
+`, submitterName,
+		ticket.TicketID,
+		ticket.Subject,
+		ticket.Category,
+		ticket.Priority,
+		resolverName,
+	)
 
 	msg := []byte(
 		"Subject: " + subject + "\r\n" +
@@ -903,7 +962,14 @@ func SendResolvedNotification(ticket models.CreateTicket, submitterName string, 
 			body,
 	)
 
-	err := smtp.SendMail(smtpHost+":587", auth, from, []string{toEmail}, msg)
+	err := smtp.SendMail(
+		smtpHost+":587",
+		auth,
+		from,
+		[]string{toEmail},
+		msg,
+	)
+
 	if err != nil {
 		log.Println("Failed to send resolved email:", err)
 	}

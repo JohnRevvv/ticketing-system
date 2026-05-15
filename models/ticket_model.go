@@ -3,25 +3,26 @@ package models
 import "time"
 
 type CreateTicket struct {
-	TicketID          string     `json:"ticket_id"          gorm:"primaryKey"`
-	Username          string     `json:"username"`
-	Category          string     `json:"category"`
-	Subject           string     `json:"subject"`
-	Institution       string     `json:"institution"`
-	Tickettype        string     `json:"tickettype"`
-	Description       string     `json:"description"`
-	DateNeed          *time.Time `json:"dateneed"`
-	Priority          string     `json:"priority"`
-	Assignee          string     `json:"assignee"`
-	Endorser          string     `json:"endorser"`
-	Approver          string     `json:"approver"`
-	Status            string     `json:"status" gorm:"default:'for endorsement'"`
-	CreatedAt         time.Time  `json:"created_at" gorm:"autoCreateTime"`
-	UpdatedAt         time.Time  `json:"updated_at" gorm:"autoUpdateTime"`
+	TicketID    string     `json:"ticket_id"          gorm:"primaryKey"`
+	Username    string     `json:"username"`
+	Category    string     `json:"category"`
+	Subcategory string     `json:"sub_category"`
+	Subject     string     `json:"subject"`
+	Institution string     `json:"institution"`
+	Tickettype  string     `json:"tickettype"`
+	Description string     `json:"description"`
+	DateNeed    *time.Time `json:"dateneed"`
+	Priority    string     `json:"priority"`
+	Assignee    string     `json:"assignee"`
+	Endorser    string     `json:"endorser"`
+	Approver    string     `json:"approver"`
+	Status      string     `json:"status" gorm:"default:'for endorsement'"`
+	CreatedAt   time.Time  `json:"created_at" gorm:"autoCreateTime"`
+	UpdatedAt   time.Time  `json:"updated_at" gorm:"autoUpdateTime"`
 
-	CancelledBy       string     `json:"cancelled_by"`
-	CancelledAt       *time.Time `json:"cancelled_at"`
-	CancelledReason   string     `json:"cancelled_reason"` // ✅ NEW FIELD
+	CancelledBy     string     `json:"cancelled_by"`
+	CancelledAt     *time.Time `json:"cancelled_at"`
+	CancelledReason string     `json:"cancelled_reason"` // ✅ NEW FIELD
 
 	StartedAt         *time.Time `json:"started_at"`
 	ResolvedAt        *time.Time `json:"resolved_at"`
@@ -65,4 +66,3 @@ type TicketRemark struct {
 func (TicketRemark) TableName() string {
 	return "ticketremark"
 }
-

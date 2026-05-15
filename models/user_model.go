@@ -1,16 +1,15 @@
 package models
 
-import (
-	"time"
-)
+import "time"
 
 type UserAccount struct {
-	UserID      uint      `gorm:"primaryKey" json:"user_id"`
-	Username    string    `gorm:"unique;not null" json:"username"`
-	Password    string    `gorm:"not null" json:"password"`
+	UserID   uint   `gorm:"primaryKey" json:"user_id"`
+	StaffID  string `gorm:"unique;not null;index" json:"staff_id"`
+	Username string `gorm:"unique;not null" json:"username"`
+	Password string `gorm:"not null" json:"password"`
 
-	FirstName   string    `json:"first_name"`
-	LastName    string    `json:"last_name"`
+	FirstName string `json:"first_name"`
+	LastName  string `json:"last_name"`
 
 	Email       string    `gorm:"unique;not null" json:"email"`
 	Position    string    `gorm:"not null" json:"position"`
@@ -52,14 +51,14 @@ func (SubCategory) TableName() string {
 // ============================================
 
 type Institution struct {
-	InstitutionID uint      `gorm:"primaryKey" json:"institution_id"`
-	Name           string    `gorm:"unique;not null" json:"name"`
-	Description    string    `json:"description"`
-	Status         string    `gorm:"default:'active';not null" json:"status"`
+	InstitutionID uint   `gorm:"primaryKey" json:"institution_id"`
+	Name          string `gorm:"unique;not null" json:"name"`
+	Description   string `json:"description"`
+	Status        string `gorm:"default:'active';not null" json:"status"`
 
-	CreatedBy      uint      `gorm:"not null" json:"created_by"`
-	CreatedAt      time.Time `json:"created_at"`
-	UpdatedAt      time.Time `json:"updated_at"`
+	CreatedBy uint      `gorm:"not null" json:"created_by"`
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
 }
 
 func (Institution) TableName() string {
