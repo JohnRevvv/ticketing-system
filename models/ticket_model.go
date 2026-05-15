@@ -33,6 +33,10 @@ type CreateTicket struct {
 	ClosedAt          time.Time  `json:"closed_at"`
 }
 
+func (CreateTicket) TableName() string {
+	return "tickets"
+}
+
 // ── TicketAttachment ──────────────────────────────────────────────────────────
 
 type TicketAttachment struct {
