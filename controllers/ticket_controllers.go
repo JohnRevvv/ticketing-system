@@ -971,12 +971,18 @@ func CloseTicket(c *fiber.Ctx) error {
 
 	now := time.Now()
 
-	// 💾 Update ticket (CLOSE only)
-	if err := middleware.DBConn.Model(&ticket).Updates(map[string]interface{}{
-		"status":     "closed",
-		"closed_by":  user.Username,
-		"closed_at":  now,
-	}).Error; err != nil {
+	if ticket.Status == "closed" {
+		return c.Status(fiber.StatusBadRequest).JSON(response.ResponseModel{
+			RetCode: "400",
+			Message: "Ticket is already closed",
+		})
+	}
+
+	ticket.Status = "closed"
+	ticket.ClosedBy = user.Username
+	ticket.ClosedAt = &now
+
+	if err := middleware.DBConn.Save(&ticket).Error; err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(response.ResponseModel{
 			RetCode: "500",
 			Message: "Failed to close ticket",

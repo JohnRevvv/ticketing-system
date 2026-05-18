@@ -31,7 +31,8 @@ type CreateTicket struct {
 	OnHold            bool       `json:"onhold" gorm:"column:on_hold;default:false"`
 	HoldStartedAt     *time.Time `json:"hold_started_at"`
 	TotalHoldSeconds  float64    `json:"total_hold_seconds"`
-	ClosedAt          time.Time  `json:"closed_at"`
+	ClosedBy          string     `json:"closed_by"`
+	ClosedAt          *time.Time  `json:"closed_at"`
 }
 
 func (CreateTicket) TableName() string {
