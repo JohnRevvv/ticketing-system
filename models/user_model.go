@@ -3,7 +3,7 @@ package models
 import "time"
 
 type UserAccount struct {
-	UserID   uint   `gorm:"primaryKey" json:"user_id"`
+	UserID uint `gorm:"primaryKey" json:"user_id"`
 	// StaffID  string `gorm:"unique;not null;index" json:"staff_id"`
 	Username string `gorm:"unique;not null" json:"username"`
 	Password string `gorm:"not null" json:"password"`
@@ -56,6 +56,8 @@ type Institution struct {
 	Description   string `json:"description"`
 	Status        string `gorm:"default:'active';not null" json:"status"`
 
+	Positions []Position `gorm:"foreignKey:InstitutionID;constraint:OnUpdate:CASCADE,OnDelete:CASCADE" json:"positions"`
+
 	CreatedBy uint      `gorm:"not null" json:"created_by"`
 	CreatedAt time.Time `json:"created_at"`
 	UpdatedAt time.Time `json:"updated_at"`
@@ -63,4 +65,17 @@ type Institution struct {
 
 func (Institution) TableName() string {
 	return "institution"
+}
+
+type Position struct {
+	PositionID    uint   `gorm:"primaryKey" json:"position_id"`
+	InstitutionID uint   `gorm:"not null" json:"institution_id"`
+	Name          string `gorm:"unique;not null" json:"name"`
+	Status        string `gorm:"default:'active';not null" json:"status"`
+
+	Institution Institution `gorm:"constraint:OnUpdate:CASCADE,OnDelete:CASCADE" json:"-"`
+}
+
+func (Position) TableName() string {
+	return "position"
 }

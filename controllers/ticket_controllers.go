@@ -944,14 +944,6 @@ func CloseTicket(c *fiber.Ctx) error {
 		})
 	}
 
-	reason := c.FormValue("reason")
-	if reason == "" {
-		return c.Status(fiber.StatusBadRequest).JSON(response.ResponseModel{
-			RetCode: "400",
-			Message: "Cancellation reason is required",
-		})
-	}
-
 	// 🎫 Get ticket
 	var ticket models.CreateTicket
 	if err := middleware.DBConn.Where("ticket_id = ?", ticketID).First(&ticket).Error; err != nil {
@@ -969,8 +961,7 @@ func CloseTicket(c *fiber.Ctx) error {
 		})
 	}
 
-	// 🔒 Optional:
-	// Only submitter or admin can close the ticket
+	// 🔒 Only submitter or admin can close the ticket
 	if user.Username != ticket.Username && user.Role != "admin" {
 		return c.Status(fiber.StatusForbidden).JSON(response.ResponseModel{
 			RetCode: "403",
@@ -980,20 +971,21 @@ func CloseTicket(c *fiber.Ctx) error {
 
 	now := time.Now()
 
-	// 💾 Update ticket
+	// 💾 Update ticket (CLOSE only)
 	if err := middleware.DBConn.Model(&ticket).Updates(map[string]interface{}{
-		"status":           "cancelled",
-		"cancelled_by":     user.Username,
-		"cancelled_at":     now,
-		"cancelled_reason": reason,
+		"status":     "closed",
+		"closed_by":  user.Username,
+		"closed_at":  now,
 	}).Error; err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(response.ResponseModel{
 			RetCode: "500",
-			Message: "Failed to cancel ticket",
+			Message: "Failed to close ticket",
 		})
 	}
 
-	// ✅ RESPONSE
+	// refresh ticket data (optional but cleaner response)
+	middleware.DBConn.Where("ticket_id = ?", ticketID).First(&ticket)
+
 	return c.Status(fiber.StatusOK).JSON(response.ResponseModel{
 		RetCode: "200",
 		Message: "Ticket closed successfully",
