@@ -18,23 +18,47 @@ import (
 	"github.com/google/uuid"
 )
 
+// var ticketIDMutex = &sync.Mutex{}
+
+// // generateTicketID returns the next ticket code like SR00001
+// func generateTicketID() string {
+// 	ticketIDMutex.Lock()
+// 	defer ticketIDMutex.Unlock()
+
+// 	var lastTicket models.CreateTicket
+// 	if err := middleware.DBConn.Order("created_at desc").First(&lastTicket).Error; err != nil {
+// 		// No tickets yet
+// 		return "SR000001"
+// 	}
+
+// 	// Extract numeric part
+// 	var num int
+// 	fmt.Sscanf(lastTicket.TicketID, "SR%06d", &num)
+// 	num++
+// 	return fmt.Sprintf("SR%06d", num)
+// }
+
 var ticketIDMutex = &sync.Mutex{}
 
-// generateTicketID returns the next ticket code like SR00001
 func generateTicketID() string {
 	ticketIDMutex.Lock()
 	defer ticketIDMutex.Unlock()
 
 	var lastTicket models.CreateTicket
-	if err := middleware.DBConn.Order("created_at desc").First(&lastTicket).Error; err != nil {
-		// No tickets yet
+
+	err := middleware.DBConn.
+		Order("ticket_id desc").
+		First(&lastTicket).Error
+
+	if err != nil {
 		return "SR000001"
 	}
 
-	// Extract numeric part
 	var num int
 	fmt.Sscanf(lastTicket.TicketID, "SR%06d", &num)
+
 	num++
+
 	return fmt.Sprintf("SR%06d", num)
 }
 
@@ -666,9 +690,9 @@ func ExportTicketsCSV(c *fiber.Ctx) error {
 
 	// 17 headers → indices 0–16
 	headers := []string{
-		"Ticket ID",    // 0
-		"Creator",      // 1
-		"Category",     // 2
+		"Ticket ID", // 0
+		"Creator",   // 1
+		"Category",  // 2
 		"Subcategory",
 		"Subject",      // 3
 		"Institution",  // 4
@@ -694,9 +718,9 @@ func ExportTicketsCSV(c *fiber.Ctx) error {
 		}
 
 		row := []string{
-			t.TicketID,    // 0
-			t.Username,    // 1
-			t.Category,    // 2
+			t.TicketID, // 0
+			t.Username, // 1
+			t.Category, // 2
 			t.Subcategory,
 			t.Subject,     // 3
 			t.Institution, // 4
