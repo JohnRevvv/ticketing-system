@@ -6,7 +6,7 @@ type CreateTicket struct {
 	TicketID    string     `json:"ticket_id"          gorm:"primaryKey"`
 	Username    string     `json:"username"`
 	Category    string     `json:"category"`
-	Subcategory string     `json:"sub_category"`
+	Subcategory string     `json:"subcategory"`
 	Subject     string     `json:"subject"`
 	Institution string     `json:"institution"`
 	Tickettype  string     `json:"tickettype"`

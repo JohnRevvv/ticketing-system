@@ -18,26 +18,6 @@ import (
 	"github.com/google/uuid"
 )
 
-// var ticketIDMutex = &sync.Mutex{}
-
-// // generateTicketID returns the next ticket code like SR00001
-// func generateTicketID() string {
-// 	ticketIDMutex.Lock()
-// 	defer ticketIDMutex.Unlock()
-
-// 	var lastTicket models.CreateTicket
-// 	if err := middleware.DBConn.Order("created_at desc").First(&lastTicket).Error; err != nil {
-// 		// No tickets yet
-// 		return "SR000001"
-// 	}
-
-// 	// Extract numeric part
-// 	var num int
-// 	fmt.Sscanf(lastTicket.TicketID, "SR%06d", &num)
-// 	num++
-// 	return fmt.Sprintf("SR%06d", num)
-// }
-
 var ticketIDMutex = &sync.Mutex{}
 
 func generateTicketID() string {
@@ -71,7 +51,7 @@ func CreateTicket(c *fiber.Ctx) error {
 		TicketID:    generateTicketID(),
 		Subject:     c.FormValue("subject"),
 		Category:    c.FormValue("category"),
-		Subcategory: c.FormValue("sub_category"),
+		Subcategory: c.FormValue("subcategory"),
 		Institution: c.FormValue("institution"),
 		Tickettype:  c.FormValue("tickettype"),
 		Description: c.FormValue("description"),
@@ -547,7 +527,7 @@ func GetAllTickets(c *fiber.Ctx) error {
 			"ticket_id":          ticket.TicketID,
 			"username":           ticket.Username,
 			"category":           ticket.Category,
-			"sub_category":       ticket.Subcategory,
+			"subcategory":        ticket.Subcategory,
 			"subject":            ticket.Subject,
 			"institution":        ticket.Institution,
 			"tickettype":         ticket.Tickettype,

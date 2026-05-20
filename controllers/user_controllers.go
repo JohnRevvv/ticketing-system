@@ -451,8 +451,8 @@ func ApproveTicket(c *fiber.Ctx) error {
 				resolverName, // ✅ FULL NAME
 				resolver.Email,
 				submitterName,
-				approverName,
 				endorserName,
+				approverName,
 			)
 
 			if err != nil {

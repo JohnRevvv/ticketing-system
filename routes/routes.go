@@ -103,4 +103,12 @@ func AppRoutes(app *fiber.App) {
 	userRoutes.Delete("/delete-category/:id", controllers.DeleteCategory)
 	userRoutes.Delete("/delete-subcategory/:id", controllers.DeleteSubCategory)
 
+	// ── Institutions & Positions ───────────────────────────────────────────
+	userRoutes.Post("/add-institution", controllers.CreateInstitution)
+	userRoutes.Post("/add-position", controllers.CreatePosition)
+	userRoutes.Put("/institution/update/:id", controllers.UpdateInstitutionStatus)
+	userRoutes.Put("/position-name/update/:id", controllers.UpdatePositionName)
+	userRoutes.Get("/get/all-insitutions", controllers.GetInstitutions)
+	userRoutes.Get("/get/all-positions", controllers.GetPositions)
+
 }
