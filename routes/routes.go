@@ -111,4 +111,5 @@ func AppRoutes(app *fiber.App) {
 	userRoutes.Get("/get/all-insitutions", controllers.GetInstitutions)
 	userRoutes.Get("/get/all-positions", controllers.GetPositions)
 
+	userRoutes.Put("/tickets/:id/reassign-endorser", controllers.ReassignEndorser)
 }

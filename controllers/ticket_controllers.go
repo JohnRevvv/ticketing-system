@@ -228,6 +228,176 @@ func CreateTicket(c *fiber.Ctx) error {
 	})
 }
 
+func ReassignEndorser(c *fiber.Ctx) error {
+	ticketID := c.Params("id")
+
+	// Start transaction
+	tx := middleware.DBConn.Begin()
+
+	// Optional: validate early
+	if ticketID == "" {
+		tx.Rollback()
+		return c.Status(fiber.StatusBadRequest).JSON(response.ResponseModel{
+			RetCode: "400",
+			Message: "ticket_id is required",
+		})
+	}
+
+	// Request payload
+	type ReassignRequest struct {
+		TicketID    string `json:"ticket_id"`
+		NewEndorser string `json:"new_endorser"`
+	}
+
+	var req ReassignRequest
+
+	if err := c.BodyParser(&req); err != nil {
+		tx.Rollback()
+		return c.Status(fiber.StatusBadRequest).JSON(response.ResponseModel{
+			RetCode: "400",
+			Message: "Invalid request payload",
+		})
+	}
+
+	// Get logged-in user
+	userID, err := middleware.GetUserIDFromJWT(c)
+	if err != nil {
+		tx.Rollback()
+		return c.Status(fiber.StatusUnauthorized).JSON(response.ResponseModel{
+			RetCode: "401",
+			Message: "Unauthorized",
+		})
+	}
+
+	var user models.UserAccount
+	if err := tx.First(&user, userID).Error; err != nil {
+		tx.Rollback()
+		return c.Status(fiber.StatusInternalServerError).JSON(response.ResponseModel{
+			RetCode: "500",
+			Message: "Failed to fetch user",
+		})
+	}
+
+	// Get ticket
+	var ticket models.CreateTicket
+	if err := tx.Where("ticket_id = ?", req.TicketID).First(&ticket).Error; err != nil {
+		tx.Rollback()
+		return c.Status(fiber.StatusNotFound).JSON(response.ResponseModel{
+			RetCode: "404",
+			Message: "Ticket not found",
+		})
+	}
+
+	// Only submitter can reassign
+	if ticket.Username != user.Username {
+		tx.Rollback()
+		return c.Status(fiber.StatusForbidden).JSON(response.ResponseModel{
+			RetCode: "403",
+			Message: "Only the submitter can reassign the endorser",
+		})
+	}
+
+	// Prevent assigning to self
+	if req.NewEndorser == user.Username {
+		tx.Rollback()
+		return c.Status(fiber.StatusBadRequest).JSON(response.ResponseModel{
+			RetCode: "400",
+			Message: "You cannot assign yourself as endorser",
+		})
+	}
+
+	// Prevent same endorser
+	if ticket.Endorser == req.NewEndorser {
+		tx.Rollback()
+		return c.Status(fiber.StatusBadRequest).JSON(response.ResponseModel{
+			RetCode: "400",
+			Message: "New endorser is already assigned to this ticket",
+		})
+	}
+
+	// Get old endorser info
+	var oldEndorser models.UserAccount
+	if err := tx.
+		Where("username = ?", ticket.Endorser).
+		First(&oldEndorser).Error; err != nil {
+
+		tx.Rollback()
+		return c.Status(fiber.StatusInternalServerError).JSON(response.ResponseModel{
+			RetCode: "500",
+			Message: "Old endorser not found",
+		})
+	}
+
+	// Get new endorser info
+	var newEndorser models.UserAccount
+	if err := tx.
+		Where("username = ?", req.NewEndorser).
+		First(&newEndorser).Error; err != nil {
+
+		tx.Rollback()
+		return c.Status(fiber.StatusNotFound).JSON(response.ResponseModel{
+			RetCode: "404",
+			Message: "New endorser not found",
+		})
+	}
+
+	oldEndorserUsername := ticket.Endorser
+
+	// Update ticket endorser
+	ticket.Endorser = req.NewEndorser
+
+	if err := tx.Save(&ticket).Error; err != nil {
+		tx.Rollback()
+		return c.Status(fiber.StatusInternalServerError).JSON(response.ResponseModel{
+			RetCode: "500",
+			Message: "Failed to reassign endorser",
+		})
+	}
+
+	// Commit transaction
+	if err := tx.Commit().Error; err != nil {
+		tx.Rollback()
+		return c.Status(fiber.StatusInternalServerError).JSON(response.ResponseModel{
+			RetCode: "500",
+			Message: "Failed to finalize transaction",
+		})
+	}
+
+	// Send emails asynchronously
+	go func() {
+
+		// Notify old endorser
+		if err := services.SendEndorserReassignedNotification(
+			ticket,
+			oldEndorser.Email,
+			oldEndorserUsername,
+			req.NewEndorser,
+			user.FirstName+" "+user.LastName,
+		); err != nil {
+			log.Println("Failed to send old endorser notification:", err)
+		}
+
+		// Notify new endorser
+		if err := services.SendEndorserNotification(
+			ticket,
+			newEndorser.Email,
+			user.FirstName+" "+user.LastName,
+		); err != nil {
+			log.Println("Failed to send new endorser notification:", err)
+		}
+	}()
+
+	return c.Status(fiber.StatusOK).JSON(response.ResponseModel{
+		RetCode: "200",
+		Message: "Endorser reassigned successfully",
+		Data: fiber.Map{
+			"ticket_id":    ticket.TicketID,
+			"old_endorser": oldEndorserUsername,
+			"new_endorser": req.NewEndorser,
+		},
+	})
+}
+
 func UpdateTicket(c *fiber.Ctx) error {
 	tx := middleware.DBConn.Begin()
 
