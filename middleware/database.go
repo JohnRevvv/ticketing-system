@@ -45,7 +45,9 @@ func ConnectDB() bool {
 		&models.TicketAttachment{},
 		&models.TicketRemark{},
 		&models.Category{},
-		&models.SubCategory{}); err != nil {
+		&models.SubCategory{},
+		&models.Position{},
+		&models.Institution{}); err != nil {
 		log.Println("❌ Auto-migration failed:", err)
 		return true
 	}

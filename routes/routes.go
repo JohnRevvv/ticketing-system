@@ -51,6 +51,9 @@ func AppRoutes(app *fiber.App) {
 	api.Post("/reset-password", controllers.ResetPassword)
 	api.Post("/verify-code", controllers.VerifyCode)
 
+	api.Get("/get/all-positions", controllers.GetPositions)
+	api.Get("/get/all-institutions", controllers.GetInstitutions)
+
 	// ==============================
 	// User routes (JWT required)
 	// ==============================
@@ -108,7 +111,7 @@ func AppRoutes(app *fiber.App) {
 	userRoutes.Post("/add-position", controllers.CreatePosition)
 	userRoutes.Put("/institution/update/:id", controllers.UpdateInstitutionStatus)
 	userRoutes.Put("/position-name/update/:id", controllers.UpdatePositionName)
-	userRoutes.Get("/get/all-insitutions", controllers.GetInstitutions)
+	userRoutes.Get("/get/all-institutions", controllers.GetInstitutions)
 	userRoutes.Get("/get/all-positions", controllers.GetPositions)
 
 	userRoutes.Put("/tickets/:id/reassign-endorser", controllers.ReassignEndorser)
