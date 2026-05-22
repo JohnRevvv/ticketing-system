@@ -79,3 +79,6 @@ type Position struct {
 func (Position) TableName() string {
 	return "position"
 }
+
+
+
