@@ -711,6 +711,7 @@ func GetAllTickets(c *fiber.Ctx) error {
 			"updated_at":         ticket.UpdatedAt,
 			"cancelled_by":       ticket.CancelledBy,
 			"cancelled_at":       ticket.CancelledAt,
+			"cancelled_reason":   ticket.CancelledReason,
 			"started_at":         ticket.StartedAt,
 			"resolved_at":        ticket.ResolvedAt,
 			"resolution_minutes": ticket.ResolutionMinutes,

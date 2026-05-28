@@ -490,8 +490,21 @@ func ApproveTicket(c *fiber.Ctx) error {
 	})
 }
 
+type CancelTicketRequest struct {
+	CancelledReason string     `json:"cancelled_reason"`
+}
+
 func CancelTicket(c *fiber.Ctx) error {
 	ticketID := c.Params("id")
+
+	// Parse request body
+	var req CancelTicketRequest
+	if err := c.BodyParser(&req); err != nil || req.CancelledReason == "" {
+		return c.Status(fiber.StatusBadRequest).JSON(response.ResponseModel{
+			RetCode: "400",
+			Message: "Cancellation reason is required",
+		})
+	}
 
 	// Get user from JWT
 	userID, err := middleware.GetUserIDFromJWT(c)
@@ -520,13 +533,14 @@ func CancelTicket(c *fiber.Ctx) error {
 		})
 	}
 
-	// Already cancelled or resolved — nothing to do
+	// Already cancelled or resolved
 	if ticket.Status == "cancelled" {
 		return c.Status(fiber.StatusBadRequest).JSON(response.ResponseModel{
 			RetCode: "400",
 			Message: "Ticket is already cancelled",
 		})
 	}
+
 	if ticket.Status == "resolved" {
 		return c.Status(fiber.StatusBadRequest).JSON(response.ResponseModel{
 			RetCode: "400",
@@ -535,13 +549,12 @@ func CancelTicket(c *fiber.Ctx) error {
 	}
 
 	// =========================
-	// ✅ ROLE + OWNERSHIP CHECK
+	// ROLE + OWNERSHIP CHECK
 	// =========================
 	canCancel := false
 
 	switch user.Role {
 	case "admin":
-		// Admin can always cancel
 		canCancel = true
 
 	case "endorser":
@@ -555,15 +568,12 @@ func CancelTicket(c *fiber.Ctx) error {
 		}
 
 	case "resolver":
-		// Resolver can cancel only tickets assigned to them
 		if ticket.Assignee == user.Username {
 			canCancel = true
 		}
 	}
 
-	// ✅ Submitter can ONLY cancel while ticket is still for endorsement
-	if ticket.Username == user.Username &&
-		ticket.Status == "for endorsement" {
+	if ticket.Username == user.Username && ticket.Status == "for endorsement" {
 		canCancel = true
 	}
 
@@ -575,19 +585,27 @@ func CancelTicket(c *fiber.Ctx) error {
 	}
 
 	// =========================
-	// ✅ CANCEL TICKET
+	// CANCEL TICKET
 	// =========================
 	now := time.Now()
+
 	if err := middleware.DBConn.Model(&ticket).Updates(map[string]interface{}{
-		"status":       "cancelled",
-		"cancelled_by": user.Username,
-		"cancelled_at": now,
+		"status":            "cancelled",
+		"cancelled_by":      user.Username,
+		"cancelled_at":      now,
+		"cancelled_reason":  req.CancelledReason,
 	}).Error; err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(response.ResponseModel{
 			RetCode: "500",
 			Message: "Failed to cancel ticket",
 		})
 	}
+
+	// update local struct (optional but good for response consistency)
+	ticket.Status = "cancelled"
+	ticket.CancelledBy = user.Username
+	ticket.CancelledAt = &now
+	ticket.CancelledReason = req.CancelledReason
 
 	return c.Status(fiber.StatusOK).JSON(response.ResponseModel{
 		RetCode: "200",
@@ -934,8 +952,6 @@ func humanDuration(d time.Duration) string {
 	}
 	return fmt.Sprintf("%02dm %02ds", minutes, seconds)
 }
-
-
 
 
 
