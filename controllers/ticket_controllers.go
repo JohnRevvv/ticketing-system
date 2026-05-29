@@ -697,7 +697,7 @@ func GetAllTickets(c *fiber.Ctx) error {
 			"ticket_id":          ticket.TicketID,
 			"username":           ticket.Username,
 			"category":           ticket.Category,
-			"subcategory":        ticket.Subcategory,
+			"1subcategory":        ticket.Subcategory,
 			"subject":            ticket.Subject,
 			"institution":        ticket.Institution,
 			"tickettype":         ticket.Tickettype,
