@@ -33,6 +33,13 @@ type CreateTicket struct {
 	TotalHoldSeconds  float64    `json:"total_hold_seconds"`
 	ClosedBy          string     `json:"closed_by"`
 	ClosedAt          *time.Time  `json:"closed_at"`
+
+	EndorsedAt *time.Time `json:"endorsed_at"`
+	ApprovedAt *time.Time `json:"approved_at"`
+
+	CloseToken      string     `json:"-" gorm:"column:close_token"`
+	CloseTokenUsed  bool       `json:"-" gorm:"column:close_token_used"`
+
 }
 
 func (CreateTicket) TableName() string {

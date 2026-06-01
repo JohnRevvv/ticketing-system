@@ -38,6 +38,7 @@ type SubCategory struct {
 	SubCategoryID uint      `json:"sub_category_id" gorm:"primaryKey"`
 	CategoryID    uint      `json:"category_id"` // 🔥 REQUIRED
 	Name          string    `json:"name"`
+	Subject       string    `json:"subject"`
 	Description   string    `json:"description"`
 	CreatedAt     time.Time `json:"created_at"`
 }
@@ -79,6 +80,3 @@ type Position struct {
 func (Position) TableName() string {
 	return "position"
 }
-
-
-

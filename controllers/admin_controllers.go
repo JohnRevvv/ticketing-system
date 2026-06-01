@@ -13,7 +13,7 @@ import (
 )
 
 // Allowed values for Role and Status
-var validRoles = []string{"approver", "endorser", "user", "resolver"}
+var validRoles = []string{"admin", "auditor", "approver", "endorser", "user", "resolver"}
 var validStatuses = []string{"active", "inactive"}
 
 // UpdateUserRoleStatus allows admin to update a user's role and status
@@ -118,14 +118,14 @@ func UpdateUserProfile(c *fiber.Ctx) error {
 	userID := c.Params("id")
 
 	var body struct {
-		FirstName  string `json:"first_name"`
-		LastName   string `json:"last_name"`
-		Email      string `json:"email"`
-		Password   string `json:"password"`
+		FirstName   string `json:"first_name"`
+		LastName    string `json:"last_name"`
+		Email       string `json:"email"`
+		Password    string `json:"password"`
 		Institution string `json:"institution"`
-		Position   string `json:"position"`
-		Role       string `json:"role"`
-		Status     string `json:"status"`
+		Position    string `json:"position"`
+		Role        string `json:"role"`
+		Status      string `json:"status"`
 	}
 
 	if err := c.BodyParser(&body); err != nil {
@@ -260,7 +260,6 @@ func contains(slice []string, val string) bool {
 	return false
 }
 
-
 // ============================================
 // CATEGORY FUNCTIONS!
 // ============================================
@@ -364,6 +363,7 @@ func UpdateSubCategoryDescription(c *fiber.Ctx) error {
 	id := c.Params("id")
 
 	var input struct {
+		Subject     string `json:"subject"`
 		Description string `json:"description"`
 	}
 
@@ -383,6 +383,7 @@ func UpdateSubCategoryDescription(c *fiber.Ctx) error {
 		})
 	}
 
+	subcategory.Subject = input.Subject
 	subcategory.Description = input.Description
 
 	if err := middleware.DBConn.Save(&subcategory).Error; err != nil {
@@ -629,7 +630,6 @@ func DeleteSubCategory(c *fiber.Ctx) error {
 		Message: "Subcategory deleted successfully",
 	})
 }
-
 
 // ============================================
 // INSTITUTIONS!!

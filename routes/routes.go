@@ -34,6 +34,8 @@ func AppRoutes(app *fiber.App) {
 		return c.SendFile(filePath)
 	})
 
+	api.Get("/ticket/close/:ticketId/:token",controllers.CloseTicketFromEmail)
+
 	public := app.Group("/api/public/v1")
 
 	public.Get("/", func(c *fiber.Ctx) error {
@@ -115,4 +117,5 @@ func AppRoutes(app *fiber.App) {
 	userRoutes.Get("/get/all-positions", controllers.GetPositions)
 
 	userRoutes.Put("/tickets/:id/reassign-endorser", controllers.ReassignEndorser)
+
 }

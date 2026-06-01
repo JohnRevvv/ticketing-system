@@ -791,6 +791,12 @@ func SendResolvedNotification(ticket models.CreateTicket, submitterName string, 
 
 	subject := "Your Ticket Has Been Resolved"
 
+  closeURL := fmt.Sprintf(
+	"https://idiyanale.bakawan-ai.com/api/public/v1/ticket/close/%s/%s",
+	ticket.TicketID,
+	ticket.CloseToken,
+)
+
 	body := fmt.Sprintf(`
 <!DOCTYPE html>
 <html>
@@ -928,15 +934,14 @@ func SendResolvedNotification(ticket models.CreateTicket, submitterName string, 
       </p>
     </div>
 
-    <a href="https://idiyanale.bakawan-ai.com/login" class="btn">
-      Login to Close Ticket
-    </a>
+    <a href="%s" class="btn">
+  Close Ticket
+</a>
 
     <div class="footer">
       <p><b>Note:</b> This is an automated message.</p>
       <p>
-        Please log in and close the ticket once you confirm
-        the issue has been resolved.
+        If everything is working properly, you may close the ticket using the button above.
       </p>
       <p>
         If the issue still persists, you may reopen or create a new ticket.
@@ -953,6 +958,7 @@ func SendResolvedNotification(ticket models.CreateTicket, submitterName string, 
 		ticket.Category,
 		ticket.Priority,
 		resolverName,
+    closeURL,
 	)
 
 	msg := []byte(
@@ -1279,7 +1285,6 @@ func encodeSubject(subject string) string {
 	encoded := base64.StdEncoding.EncodeToString([]byte(subject))
 	return "=?UTF-8?B?" + encoded + "?="
 }
-
 
 // ==============================
 //      Reassign notification
