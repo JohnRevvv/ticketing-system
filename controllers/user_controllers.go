@@ -493,7 +493,7 @@ func ApproveTicket(c *fiber.Ctx) error {
 }
 
 type CancelTicketRequest struct {
-	CancelledReason string     `json:"cancelled_reason"`
+	CancelledReason string `json:"cancelled_reason"`
 }
 
 func CancelTicket(c *fiber.Ctx) error {
@@ -542,11 +542,16 @@ func CancelTicket(c *fiber.Ctx) error {
 			Message: "Ticket is already cancelled",
 		})
 	}
-
 	if ticket.Status == "resolved" {
 		return c.Status(fiber.StatusBadRequest).JSON(response.ResponseModel{
 			RetCode: "400",
 			Message: "Resolved tickets cannot be cancelled",
+		})
+	}
+	if ticket.Status == "closed" {
+		return c.Status(fiber.StatusBadRequest).JSON(response.ResponseModel{
+			RetCode: "400",
+			Message: "Closed tickets cannot be cancelled",
 		})
 	}
 
@@ -554,29 +559,40 @@ func CancelTicket(c *fiber.Ctx) error {
 	// ROLE + OWNERSHIP CHECK
 	// =========================
 	canCancel := false
+	role := strings.TrimSpace(strings.ToLower(user.Role))
+	status := strings.TrimSpace(strings.ToLower(ticket.Status))
 
-	switch user.Role {
+	switch role {
 	case "admin":
 		canCancel = true
 
 	case "endorser":
-		if ticket.Status == "for endorsement" {
+		// Must be the assigned endorser AND ticket is awaiting endorsement
+		assignedEndorser := strings.TrimSpace(strings.ToLower(ticket.Endorser))
+		isAssignedEndorser := assignedEndorser == strings.ToLower(user.Username)
+		if isAssignedEndorser && (status == "for endorsement" || status == "submitted" || status == "new") {
 			canCancel = true
 		}
 
 	case "approver":
-		if ticket.Status == "for approval" {
+		// Ticket must be awaiting approval
+		if status == "for approval" || status == "endorsed" || status == "for assessment" {
 			canCancel = true
 		}
 
 	case "resolver":
-		if ticket.Assignee == user.Username {
+		// Must be the assigned resolver AND ticket is in progress
+		isAssignedResolver := strings.TrimSpace(strings.ToLower(ticket.Assignee)) == strings.ToLower(user.Username)
+		if isAssignedResolver && (status == "assigned" || status == "in progress" || status == "in_progress") {
 			canCancel = true
 		}
 	}
 
-	if ticket.Username == user.Username && ticket.Status == "for endorsement" {
-		canCancel = true
+	// Creator ("user" role) can cancel at any active stage
+	if strings.EqualFold(ticket.Username, user.Username) {
+		if status != "cancelled" && status != "resolved" && status != "closed" {
+			canCancel = true
+		}
 	}
 
 	if !canCancel {
@@ -590,12 +606,11 @@ func CancelTicket(c *fiber.Ctx) error {
 	// CANCEL TICKET
 	// =========================
 	now := time.Now()
-
 	if err := middleware.DBConn.Model(&ticket).Updates(map[string]interface{}{
-		"status":            "cancelled",
-		"cancelled_by":      user.Username,
-		"cancelled_at":      now,
-		"cancelled_reason":  req.CancelledReason,
+		"status":           "cancelled",
+		"cancelled_by":     user.Username,
+		"cancelled_at":     now,
+		"cancelled_reason": req.CancelledReason,
 	}).Error; err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(response.ResponseModel{
 			RetCode: "500",
@@ -603,7 +618,7 @@ func CancelTicket(c *fiber.Ctx) error {
 		})
 	}
 
-	// update local struct (optional but good for response consistency)
+	// Update local struct for response consistency
 	ticket.Status = "cancelled"
 	ticket.CancelledBy = user.Username
 	ticket.CancelledAt = &now
@@ -1206,8 +1221,6 @@ func humanDuration(d time.Duration) string {
 // 	})
 // }
 
-
-
 // ============================================
 // RESERVED FOR PHASE 2!!
 // ============================================
@@ -1329,4 +1342,3 @@ func GetAllUsers2(c *fiber.Ctx) error {
 		Data:    users,
 	})
 }
-
