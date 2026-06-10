@@ -34,7 +34,7 @@ func AppRoutes(app *fiber.App) {
 		return c.SendFile(filePath)
 	})
 
-	api.Get("/ticket/close/:ticketId/:token",controllers.CloseTicketFromEmail)
+	
 
 	public := app.Group("/api/public/v1")
 
@@ -55,6 +55,8 @@ func AppRoutes(app *fiber.App) {
 
 	api.Get("/get/all-positions", controllers.GetPositions)
 	api.Get("/get/all-institutions", controllers.GetInstitutions)
+
+	public.Get("/ticket/close/:ticketId/:token",controllers.CloseTicketFromEmail)
 
 	// ==============================
 	// User routes (JWT required)
