@@ -125,11 +125,11 @@ func CreateTicket(c *fiber.Ctx) error {
 
 		for i, file := range files {
 
-			log.Printf("📄 [%d] Processing file: %s (size: %d bytes)", i+1, file.Filename, file.Size)
+			log.Printf("📎 [%d] Processing file: %s (size: %d bytes)", i+1, file.Filename, file.Size)
 
 			// File size validation (5MB)
 			if file.Size > 5*1024*1024 {
-				log.Printf("❌ [%s] File too large: %d bytes", file.Filename, file.Size)
+				log.Printf("❌ [%s] File too large", file.Filename)
 
 				tx.Rollback()
 				return c.Status(fiber.StatusBadRequest).JSON(response.ResponseModel{
@@ -183,9 +183,9 @@ func CreateTicket(c *fiber.Ctx) error {
 				})
 			}
 
-			log.Printf("✅ [%s] Uploaded to S3 successfully", file.Filename)
-			log.Printf("🔑 S3 Key: %s", filekey)
-			log.Printf("📝 Stored filename: %s", fileName)
+			log.Printf("✅ [%s] Uploaded successfully to S3", file.Filename)
+			log.Printf("🔑 [%s] S3 Key: %s", file.Filename, filekey)
+			log.Printf("📝 [%s] Stored filename: %s", file.Filename, fileName)
 
 			// Save attachment metadata
 			log.Printf("💾 [%s] Saving metadata to DB...", file.Filename)
@@ -198,7 +198,7 @@ func CreateTicket(c *fiber.Ctx) error {
 			}
 
 			if err := tx.Create(&attachment).Error; err != nil {
-				log.Printf("❌ DB SAVE FAILED for %s: %v", file.Filename, err)
+				log.Printf("❌ [%s] DB SAVE FAILED: %v", file.Filename, err)
 
 				tx.Rollback()
 				return c.Status(fiber.StatusInternalServerError).JSON(response.ResponseModel{
@@ -207,11 +207,11 @@ func CreateTicket(c *fiber.Ctx) error {
 				})
 			}
 
-			log.Printf("✅ [%s] Metadata saved successfully", file.Filename)
+			log.Printf("🎉 [%s] Completed successfully", file.Filename)
 		}
-
-		log.Println("🎉 All attachments processed successfully for TicketID:", ticket.TicketID)
 	}
+
+	log.Println("🚀 All attachments processed for TicketID:", ticket.TicketID)
 
 	// Get endorser email
 	var endorser models.UserAccount
