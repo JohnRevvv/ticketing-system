@@ -121,10 +121,16 @@ func CreateTicket(c *fiber.Ctx) error {
 	if err == nil && form.File != nil {
 		files := form.File["attachments"]
 
-		for _, file := range files {
+		log.Println("📦 Total attachments received:", len(files))
+
+		for i, file := range files {
+
+			log.Printf("📄 [%d] Processing file: %s (size: %d bytes)", i+1, file.Filename, file.Size)
 
 			// File size validation (5MB)
 			if file.Size > 5*1024*1024 {
+				log.Printf("❌ [%s] File too large: %d bytes", file.Filename, file.Size)
+
 				tx.Rollback()
 				return c.Status(fiber.StatusBadRequest).JSON(response.ResponseModel{
 					RetCode: "400",
@@ -134,6 +140,8 @@ func CreateTicket(c *fiber.Ctx) error {
 
 			// File type validation
 			contentType := file.Header.Get("Content-Type")
+			log.Printf("🔍 [%s] Content-Type: %s", file.Filename, contentType)
+
 			allowedTypes := map[string]bool{
 				"image/jpeg":      true,
 				"image/png":       true,
@@ -143,6 +151,8 @@ func CreateTicket(c *fiber.Ctx) error {
 			}
 
 			if !allowedTypes[contentType] {
+				log.Printf("❌ [%s] Invalid file type: %s", file.Filename, contentType)
+
 				tx.Rollback()
 				return c.Status(fiber.StatusBadRequest).JSON(response.ResponseModel{
 					RetCode: "400",
@@ -151,6 +161,8 @@ func CreateTicket(c *fiber.Ctx) error {
 			}
 
 			// Upload to S3
+			log.Printf("☁️ [%s] Uploading to S3...", file.Filename)
+
 			fileName, filekey, err := services.UploadToS3(file, ticket.TicketID)
 			if err != nil {
 				log.Println("❌ S3 UPLOAD FAILED")
@@ -171,7 +183,13 @@ func CreateTicket(c *fiber.Ctx) error {
 				})
 			}
 
+			log.Printf("✅ [%s] Uploaded to S3 successfully", file.Filename)
+			log.Printf("🔑 S3 Key: %s", filekey)
+			log.Printf("📝 Stored filename: %s", fileName)
+
 			// Save attachment metadata
+			log.Printf("💾 [%s] Saving metadata to DB...", file.Filename)
+
 			attachment := models.TicketAttachment{
 				TicketID:   ticket.TicketID,
 				FileName:   fileName,
@@ -180,13 +198,19 @@ func CreateTicket(c *fiber.Ctx) error {
 			}
 
 			if err := tx.Create(&attachment).Error; err != nil {
+				log.Printf("❌ DB SAVE FAILED for %s: %v", file.Filename, err)
+
 				tx.Rollback()
 				return c.Status(fiber.StatusInternalServerError).JSON(response.ResponseModel{
 					RetCode: "500",
 					Message: "Failed to save attachment metadata",
 				})
 			}
+
+			log.Printf("✅ [%s] Metadata saved successfully", file.Filename)
 		}
+
+		log.Println("🎉 All attachments processed successfully for TicketID:", ticket.TicketID)
 	}
 
 	// Get endorser email
