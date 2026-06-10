@@ -792,7 +792,7 @@ func SendResolvedNotification(ticket models.CreateTicket, submitterName string, 
 	subject := "Your Ticket Has Been Resolved"
 
   closeURL := fmt.Sprintf(
-	"https://idiyanale.bakawan-ai.com/api/public/v1/ticket/close/%s/%s",
+	"https://idiyanale-be.bakawan-ai.com/api/public/v1/ticket/close/%s/%s",
 	ticket.TicketID,
 	ticket.CloseToken,
 )
