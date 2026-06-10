@@ -463,6 +463,8 @@ func UpdateTicket(c *fiber.Ctx) error {
 	}
 
 	ticket.Subject = c.FormValue("subject")
+	ticket.Category = c.FormValue("category")
+	ticket.Subcategory = c.FormValue("subcategory")
 	ticket.Institution = c.FormValue("institution")
 	ticket.Description = c.FormValue("description")
 	ticket.Priority = c.FormValue("priority")

@@ -258,7 +258,12 @@ func EndorseTicket(c *fiber.Ctx) error {
 	}
 
 	// Update ticket
+	// Update ticket
+	now := time.Now().UTC()
+
 	ticket.Status = "for approval"
+	ticket.EndorsedAt = &now
+
 	if err := middleware.DBConn.Save(&ticket).Error; err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(response.ResponseModel{
 			RetCode: "500",
@@ -387,10 +392,13 @@ func ApproveTicket(c *fiber.Ctx) error {
 		})
 	}
 
+	now := time.Now().UTC()
+
 	// Save approver username + update status
 	if err := middleware.DBConn.Model(&ticket).Updates(map[string]interface{}{
-		"status":   "for assignment",
-		"approver": user.Username,
+		"status":      "for assignment",
+		"approver":    user.Username,
+		"approved_at": now,
 	}).Error; err != nil {
 
 		return c.Status(fiber.StatusInternalServerError).JSON(response.ResponseModel{
